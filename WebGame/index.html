@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#070a12" />
+    <title>Night Courier</title>
+    <style>
+      html,
+      body,
+      #game-container {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+      }
+
+      html,
+      body {
+        overflow: hidden;
+        background: #070a12;
+        touch-action: none;
+      }
+
+      #game-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game-container"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -4,12 +4,12 @@ This backlog is ordered for implementation. Tasks should remain small enough to 
 
 ## M0 — Bootstrap
 
-- [ ] M0.1 Initialize Vite + TypeScript project under `WebGame/`.
-- [ ] M0.2 Add Phaser 4 and commit the package lockfile.
-- [ ] M0.3 Configure 960x540 logical resolution and responsive scaling.
-- [ ] M0.4 Add `dev`, `build` and `typecheck` scripts.
-- [ ] M0.5 Add minimal Boot/Game/Result scene flow.
-- [ ] M0.6 Verify production `dist/` runs from a local static host.
+- [x] M0.1 Initialize Vite + TypeScript project under `WebGame/`.
+- [x] M0.2 Add Phaser 4 and commit the package lockfile.
+- [x] M0.3 Configure 960x540 logical resolution and responsive scaling.
+- [x] M0.4 Add `dev`, `build` and `typecheck` scripts.
+- [x] M0.5 Add minimal Boot/Game/Result scene flow.
+- [x] M0.6 Verify production `dist/` runs from a local static host.
 
 ## M1 — Road / player slice
 
