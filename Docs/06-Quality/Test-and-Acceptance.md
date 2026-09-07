@@ -79,7 +79,20 @@ Do not unit-test Phaser rendering internals merely to increase coverage.
 - Riskier branch demonstrates materially higher traffic/risk or shorter duration.
 - Safer branch remains viable rather than strictly inferior.
 
-## 9. Host bridge acceptance
+## 9. Visual/art acceptance
+
+- Production sprites and UI use the authoritative `Night Courier 20` palette or documented derived/dimmed forms that preserve the same color roles.
+- Dark/cool neutrals visibly dominate the scene; neon remains an accent rather than the majority of the frame.
+- Practical warm lighting is present so the environment does not collapse into generic purple/cyan synthwave.
+- The light neutral hero vehicle remains immediately distinguishable from traffic and the background at representative gameplay speed.
+- Traffic and gameplay hazards remain readable before collision distance.
+- Far background layers have lower contrast/saturation than near gameplay layers.
+- HUD semantic colors are consistent: positive cargo, caution, danger, score/time and combo states do not arbitrarily change hue between screens.
+- Pixel assets render without unintended bilinear smoothing.
+- Player/HUD sprites do not exhibit distracting subpixel shimmer during representative movement/scaling.
+- A visual pass does not require adding colors outside the master palette unless a documented material/readability problem exists.
+
+## 10. Host bridge acceptance
 
 - `READY` is emitted once the game can safely accept `INIT`.
 - Invalid/unsupported message versions are rejected safely.
@@ -91,7 +104,7 @@ Do not unit-test Phaser rendering internals merely to increase coverage.
 - WebView can be destroyed and recreated without duplicate callbacks or stale state.
 - Second launch in the same Unity process behaves like the first.
 
-## 10. Offline acceptance
+## 11. Offline acceptance
 
 Test with network unavailable:
 - page loads;
@@ -102,7 +115,7 @@ Test with network unavailable:
 
 No required runtime resource may originate from a CDN or public URL.
 
-## 11. Performance acceptance
+## 12. Performance acceptance
 
 Exact budgets should be established on the actual target device rather than invented in advance. Initial acceptance is behavioral:
 
@@ -114,7 +127,7 @@ Exact budgets should be established on the actual target device rather than inve
 
 If profiling identifies a bottleneck, document measured evidence before adding optimization architecture.
 
-## 12. Defect severity
+## 13. Defect severity
 
 - **P0:** crash, corrupt host state/save, impossible to exit, security-critical integration failure.
 - **P1:** cannot complete a normal run, major input/rendering failure, repeated WebView lifecycle failure.
@@ -123,7 +136,7 @@ If profiling identifies a bottleneck, document measured evidence before adding o
 
 Release baseline: no known P0 or P1 defects.
 
-## 13. Product acceptance checklist
+## 14. Product acceptance checklist
 
 A release candidate is acceptable when:
 
@@ -132,6 +145,7 @@ A release candidate is acceptable when:
 - [ ] Cargo condition changes player risk decisions.
 - [ ] Near-miss scoring creates intentional score-chasing behavior.
 - [ ] Route split provides a meaningful but simple choice.
+- [ ] Player/traffic remain clearly readable at gameplay speed under the approved art direction.
 - [ ] Browser standalone build works.
 - [ ] Offline Unity WebView build works.
 - [ ] Result persists through Unity.

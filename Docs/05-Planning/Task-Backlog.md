@@ -63,14 +63,17 @@ This backlog is ordered for implementation. Tasks should remain small enough to 
 - [ ] M5.1 Implement touch steering/throttle/brake controls.
 - [ ] M5.2 Verify orientation/aspect-ratio scaling behavior.
 - [ ] M5.3 Add optional gamepad mapping if it does not delay mobile completion.
-- [ ] M5.4 Replace gameplay placeholders with player/traffic sprites.
-- [ ] M5.5 Add background and roadside prop set.
-- [ ] M5.6 Add timer/score/cargo/combo HUD polish.
-- [ ] M5.7 Add one music track.
-- [ ] M5.8 Add required SFX.
-- [ ] M5.9 Add collision feedback.
-- [ ] M5.10 Add near-miss feedback.
-- [ ] M5.11 Implement pause/resume without time jump.
+- [ ] M5.4 Establish the `Night Courier 20` palette tokens in code/asset documentation before final sprite production.
+- [ ] M5.5 Replace gameplay placeholders with player/traffic sprites using the approved palette/value hierarchy.
+- [ ] M5.6 Add background and roadside prop set with reduced contrast/saturation at depth.
+- [ ] M5.7 Validate player and traffic readability against representative night-city compositions.
+- [ ] M5.8 Add timer/score/cargo/combo HUD polish using semantic palette mappings.
+- [ ] M5.9 Verify nearest-neighbor/pixel-art scaling and remove visible smoothing/shimmer issues.
+- [ ] M5.10 Add one music track.
+- [ ] M5.11 Add required SFX.
+- [ ] M5.12 Add collision feedback.
+- [ ] M5.13 Add near-miss feedback.
+- [ ] M5.14 Implement pause/resume without time jump.
 
 ## M6 — Host bridge / Unity
 
@@ -98,7 +101,8 @@ This backlog is ordered for implementation. Tasks should remain small enough to 
 - [ ] M7.7 Profile representative target mobile device.
 - [ ] M7.8 Fix P0/P1 defects.
 - [ ] M7.9 Final balance pass for timer/cargo/score.
-- [ ] M7.10 Synchronize docs with final implemented contracts.
+- [ ] M7.10 Final visual readability/palette consistency pass at gameplay speed.
+- [ ] M7.11 Synchronize docs with final implemented contracts.
 
 ## Deferred backlog
 
@@ -111,4 +115,5 @@ Do not start these unless the initial game is already coherent and validated:
 - [ ] Track JSON/editor pipeline.
 - [ ] Dedicated HUD subsystem.
 - [ ] Dedicated audio subsystem.
+- [ ] Expanded master palette without a demonstrated material/readability problem.
 - [ ] Backend/cloud features.

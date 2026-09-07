@@ -18,6 +18,8 @@ Initial target logical resolution: `960 x 540` (16:9).
 
 The canvas scales to the available viewport while gameplay coordinates remain stable. Native device resolution must not directly define simulation coordinates.
 
+For pixel assets, nearest-neighbor scaling is the default. Avoid filtering that softens sprite pixels or causes inconsistent visual density between assets.
+
 ## 3. Frame model
 
 `GameScene.update()` converts frame delta to seconds and coordinates subsystems:
@@ -90,6 +92,8 @@ Rendering must be back-to-front for visible road segments/sprites where overlap 
 
 The visual target is convincing arcade depth, not geometric 3D correctness.
 
+Depth readability also uses the approved art-direction rules: distant layers use lower contrast/saturation subsets of the master palette while near gameplay objects retain the widest allowed value range.
+
 ## 7. Traffic
 
 Traffic entities are data, not subclasses:
@@ -158,7 +162,7 @@ On resume:
 - ignore the accumulated browser/WebView time gap;
 - restart with a clamped/zeroed first delta.
 
-## 12. Asset loading
+## 12. Asset loading and color baseline
 
 Assets are packaged locally. Boot must fail visibly rather than start partially when required assets cannot be loaded.
 
@@ -170,7 +174,22 @@ Asset categories:
 - one music track;
 - SFX.
 
-## 13. Performance principles
+Final sprite production follows [`../01-Design/Art-Direction-and-Color-Palette.md`](../01-Design/Art-Direction-and-Color-Palette.md).
+
+Implementation should expose the `Night Courier 20` master colors as named constants/tokens rather than scattering ad-hoc hex values through rendering/HUD code. This is especially important for procedural road colors and semantic HUD states.
+
+Do not add runtime palette-management architecture, shader-based palette swapping or an asset validation framework unless production evidence demonstrates a need. A small typed/static token map is sufficient for the initial game.
+
+## 13. Pixel-art rendering constraints
+
+- use nearest-neighbor filtering for pixel sprites;
+- preserve consistent apparent pixel density between player, traffic, props and HUD;
+- avoid accidental anti-aliasing on final sprite assets;
+- avoid high-frequency subpixel movement on the hero vehicle and HUD where it causes shimmer;
+- prefer integer-aligned UI placement where practical;
+- procedural road rendering may use vector/polygon geometry, but its colors must remain inside the approved visual system.
+
+## 14. Performance principles
 
 - one WebView/game instance at a time;
 - avoid unnecessary allocations in the frame loop;
@@ -179,6 +198,6 @@ Asset categories:
 - use logical resolution scaling rather than rendering at device-native resolution;
 - profile target mobile hardware before adding optimization abstractions.
 
-## 14. Error handling
+## 15. Error handling
 
 Recoverable host errors should produce a controlled result/error message. Fatal asset/runtime initialization failures should display a minimal error state and allow exit instead of leaving a frozen canvas.

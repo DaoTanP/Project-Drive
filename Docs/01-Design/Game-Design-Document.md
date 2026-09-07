@@ -138,7 +138,23 @@ Total target: 4–5 minutes.
 - approximately 8 SFX
 - minimal HUD: timer, score, cargo, combo
 
-## 11. Explicit non-goals
+## 11. Visual direction baseline
+
+The visual target is a **late-1990s Japanese-inspired urban night**, not generic 1980s synthwave.
+
+The world uses:
+
+- dark cool urban neutrals as the dominant field;
+- practical warm lighting from streetlights, headlights, taillights and commercial interiors;
+- restrained cyan/pink/violet neon as accent lighting rather than full-scene ambient color;
+- a light neutral/white-gray hero delivery vehicle with red/orange accents for strong gameplay readability;
+- lower contrast/saturation in distant scenery and maximum readable contrast on player/traffic objects.
+
+The authoritative color baseline is the custom **Night Courier 20** palette defined in [`Art-Direction-and-Color-Palette.md`](Art-Direction-and-Color-Palette.md).
+
+Pure Dracula, pure One Dark and unrestricted generic synthwave palettes are references only and are not approved as full-game world palettes.
+
+## 12. Explicit non-goals
 
 The initial version does not include:
 
@@ -155,6 +171,6 @@ The initial version does not include:
 - monetization systems;
 - complex story presentation.
 
-## 12. Success criteria
+## 13. Success criteria
 
 The game succeeds if a first-time player can finish or fail a run without instructions beyond the visible controls, understands why score changes, feels a meaningful risk/reward trade-off between speed and cargo preservation, and voluntarily retries to improve score or route execution.
