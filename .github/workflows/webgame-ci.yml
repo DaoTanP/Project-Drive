@@ -16,7 +16,7 @@ on:
       - '.github/workflows/webgame-ci.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   validate:
@@ -33,15 +33,11 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: '22.12.0'
-          package-manager-cache: false
+          cache: npm
+          cache-dependency-path: WebGame/package-lock.json
 
       - name: Install dependencies
-        run: |
-          if [ -f package-lock.json ]; then
-            npm ci
-          else
-            npm install
-          fi
+        run: npm ci
 
       - name: Typecheck
         run: npm run typecheck
@@ -62,15 +58,3 @@ jobs:
           done
           cat /tmp/night-courier-http.log
           exit 1
-
-      - name: Commit generated lockfile
-        if: github.event_name == 'push' && github.ref != 'refs/heads/main'
-        working-directory: .
-        run: |
-          if git status --porcelain -- WebGame/package-lock.json | grep -q .; then
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add WebGame/package-lock.json
-            git commit -m 'chore: lock webgame dependencies'
-            git push
-          fi
