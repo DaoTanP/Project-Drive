@@ -127,16 +127,29 @@ Target shape:
 
 Total target: 4–5 minutes.
 
-## 10. Initial content budget
+## 10. Initial content and asset budget
 
-- 1 player vehicle
-- 1 night-city visual theme
-- 3 traffic vehicle visual variants
-- approximately 10–15 roadside prop variants
-- 1 route with 1 branch
-- 1 music track
-- approximately 8 SFX
-- minimal HUD: timer, score, cargo, combo
+The initial release deliberately uses a small authored asset set. Pseudo-3D projection, parallax, composition and reuse provide visual richness instead of a large content library.
+
+Runtime target:
+
+- 1 player vehicle with **5 required steering poses** and up to 3 optional brake-light variants;
+- 3 traffic gameplay classes (`car`, `van`, `truck`) represented by approximately **4–6 visual images**; taxi and hatchback may share the `car` behavior;
+- approximately **12–15 roadside/environment prop sprites**;
+- approximately **4–6 background/parallax images**;
+- approximately **4–6 small VFX textures**;
+- approximately **5–8 HUD/gameplay icons**;
+- 1 pixel/bitmap font family where practical;
+- 1 route with 1 branch;
+- 1 music track;
+- approximately 8 SFX;
+- minimal HUD: timer, score, cargo, combo.
+
+The normal total visual budget is approximately **34–49 unique runtime images**, or roughly **45–70 frames/images** after steering, brake and FX variants are counted.
+
+Road geometry, lane markings, simple HUD bars/text, flashes, fades and other simple shapes remain procedural rather than sprite-authored.
+
+The authoritative inventory, production batches, naming, pivots and explicit deferred assets are defined in [`Asset-Inventory-and-Sprite-Requirements.md`](Asset-Inventory-and-Sprite-Requirements.md).
 
 ## 11. Visual direction baseline
 

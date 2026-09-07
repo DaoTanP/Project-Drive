@@ -28,6 +28,7 @@ Project-Drive/
 │   ├── index.html
 │   ├── src/
 │   ├── public/
+│   │   └── assets/
 │   └── tests/          # only when tests add value
 └── README.md
 ```
@@ -101,12 +102,59 @@ Avoid mixing unrelated refactors with gameplay changes.
 
 ## 8. Asset workflow
 
-1. Use placeholder shapes/sprites until the core driving loop is validated.
-2. Lock silhouette/readability requirements before producing final assets.
-3. Keep source art outside runtime asset directories when source files are large or tool-specific.
-4. Export web-ready images/audio into the web project's public/runtime assets.
-5. Avoid remote runtime dependencies.
-6. Validate asset dimensions, compression and mobile decode cost after visual direction is stable.
+The authoritative asset list is [`../01-Design/Asset-Inventory-and-Sprite-Requirements.md`](../01-Design/Asset-Inventory-and-Sprite-Requirements.md). Palette/value rules are in [`../01-Design/Art-Direction-and-Color-Palette.md`](../01-Design/Art-Direction-and-Color-Palette.md).
+
+### Runtime structure
+
+Export only build-ready files into:
+
+```text
+WebGame/public/assets/
+├── player/
+├── traffic/
+├── props/
+├── backgrounds/
+├── fx/
+├── ui/
+├── fonts/
+└── audio/
+```
+
+Source PSD/Aseprite/working files should stay outside runtime directories.
+
+### Production sequence
+
+1. Use geometric/placeholders until road projection, player control and traffic projection are stable.
+2. Lock palette, silhouette, pivot and apparent pixel-density rules before final asset production.
+3. Produce **Batch A** first: five player steering poses, at least three traffic visuals, far skyline and mid skyline.
+4. Replace placeholders and validate readability at gameplay speed before producing the full prop set.
+5. Produce **Batch B**: the reusable 12–15 prop/environment set plus any near parallax strips needed for the route.
+6. Produce **Batch C** only after composition is stable: VFX particles, HUD icons, optional brake frames and low-cost visual variants.
+7. Add audio after the gameplay events that trigger it are stable enough to tune.
+8. Validate all final runtime files with network disabled before Unity packaging.
+
+### Asset production rules
+
+- do not create a sprite for geometry/text that is cheaper and clearer to render procedurally;
+- do not add new gameplay behavior because concept art contains an extra vehicle/object;
+- use runtime horizontal flip for directional props where valid;
+- preserve predictable bottom-center pivots for road-grounded sprites;
+- keep transparent bounds/padding consistent between variants;
+- use nearest-neighbor-compatible pixel exports without unintended anti-aliasing;
+- avoid remote runtime fonts, music, scripts or image dependencies;
+- verify commercial-use licensing for fonts/audio/external source material before integration;
+- do not introduce an atlas pipeline while assets are still changing heavily.
+
+### Review checkpoint
+
+Before producing an asset outside the documented inventory, ask:
+
+1. Is it required by a current gameplay or presentation task?
+2. Can an existing sprite be reused, flipped, tinted or recomposed?
+3. Can the effect be rendered procedurally?
+4. Does it push the initial visual budget materially beyond 34–49 unique images?
+
+If the answer is primarily visual variety or hypothetical future content, defer it.
 
 ## 9. Build workflow
 
@@ -130,7 +178,7 @@ Production output:
 WebGame/dist/
 ```
 
-The Unity packaging step copies/embeds only built runtime output, not `node_modules` or TypeScript source.
+The Unity packaging step copies/embeds only built runtime output, not `node_modules`, TypeScript source or source-art files.
 
 ## 10. Unity integration workflow
 
@@ -155,12 +203,13 @@ A task is done only when:
 - production build succeeds;
 - required automated checks pass;
 - affected gameplay has been manually exercised;
+- new runtime assets meet documented palette/readability/pivot requirements;
 - no known critical regression is introduced;
 - docs are updated if a contract changed.
 
 ## 12. Scope-control checkpoint
 
-Before adding a new file, dependency, manager, generalized interface or content pipeline, ask:
+Before adding a new file, dependency, manager, generalized interface, content pipeline or asset category, ask:
 
 1. What current problem requires it?
 2. Can the current 12-file boundary express the feature cleanly?

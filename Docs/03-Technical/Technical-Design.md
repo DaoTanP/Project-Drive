@@ -107,6 +107,8 @@ interface TrafficCar {
 }
 ```
 
+The initial behavior types remain only `car`, `van` and `truck`. Multiple sprites may map to the same behavior type; for example taxi and hatchback visuals both use `car`.
+
 Traffic responsibilities:
 
 - spawn/recycle cars based on track position;
@@ -162,23 +164,40 @@ On resume:
 - ignore the accumulated browser/WebView time gap;
 - restart with a clamped/zeroed first delta.
 
-## 12. Asset loading and color baseline
+## 12. Asset loading, inventory and color baseline
 
 Assets are packaged locally. Boot must fail visibly rather than start partially when required assets cannot be loaded.
 
-Asset categories:
-- player car sprites;
-- traffic sprites;
-- road/background/prop sprites;
-- HUD assets if needed;
-- one music track;
-- SFX.
+The authoritative runtime inventory is [`../01-Design/Asset-Inventory-and-Sprite-Requirements.md`](../01-Design/Asset-Inventory-and-Sprite-Requirements.md). Final sprite production follows [`../01-Design/Art-Direction-and-Color-Palette.md`](../01-Design/Art-Direction-and-Color-Palette.md).
 
-Final sprite production follows [`../01-Design/Art-Direction-and-Color-Palette.md`](../01-Design/Art-Direction-and-Color-Palette.md).
+Runtime asset layout should converge on:
+
+```text
+WebGame/public/assets/
+├── player/
+├── traffic/
+├── props/
+├── backgrounds/
+├── fx/
+├── ui/
+├── fonts/
+└── audio/
+```
+
+Source art files must not be mixed into runtime folders.
 
 Implementation should expose the `Night Courier 20` master colors as named constants/tokens rather than scattering ad-hoc hex values through rendering/HUD code. This is especially important for procedural road colors and semantic HUD states.
 
-Do not add runtime palette-management architecture, shader-based palette swapping or an asset validation framework unless production evidence demonstrates a need. A small typed/static token map is sufficient for the initial game.
+Do not add runtime palette-management architecture, shader-based palette swapping, custom asset databases or an asset validation framework unless production evidence demonstrates a need. A small typed/static token map and straightforward Phaser preload manifest are sufficient for the initial game.
+
+### Sprite/runtime rules
+
+- player, traffic and roadside props use authored sprites;
+- road geometry, lane lines, simple HUD bars/text and basic screen effects stay procedural;
+- vehicle and ground-standing prop pivots should be bottom-centered around their road/ground contact point;
+- transparent padding must remain predictable across variants;
+- directional props should be flipped at runtime where visually valid rather than duplicated;
+- individual files are preferred while art is changing; atlasing is deferred until asset churn decreases or profiling/package evidence justifies it.
 
 ## 13. Pixel-art rendering constraints
 
@@ -187,7 +206,8 @@ Do not add runtime palette-management architecture, shader-based palette swappin
 - avoid accidental anti-aliasing on final sprite assets;
 - avoid high-frequency subpixel movement on the hero vehicle and HUD where it causes shimmer;
 - prefer integer-aligned UI placement where practical;
-- procedural road rendering may use vector/polygon geometry, but its colors must remain inside the approved visual system.
+- procedural road rendering may use vector/polygon geometry, but its colors must remain inside the approved visual system;
+- projected sprite scaling must preserve readable silhouettes and avoid unnecessary fractional-size oscillation where it produces visible shimmer.
 
 ## 14. Performance principles
 
@@ -196,6 +216,7 @@ Do not add runtime palette-management architecture, shader-based palette swappin
 - recycle traffic objects rather than continuously constructing/destroying them;
 - limit visible road segments and prop density to what the target display can resolve;
 - use logical resolution scaling rather than rendering at device-native resolution;
+- avoid loading unused concept/source assets into the runtime build;
 - profile target mobile hardware before adding optimization abstractions.
 
 ## 15. Error handling

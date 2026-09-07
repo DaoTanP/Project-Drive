@@ -6,7 +6,7 @@ This directory is the authoritative documentation root for **Night Courier**.
 
 | Area | Purpose |
 |---|---|
-| [`01-Design/`](01-Design/) | Product vision, gameplay rules, content scope, UX expectations, art direction and palette |
+| [`01-Design/`](01-Design/) | Product vision, gameplay rules, content scope, UX expectations, art direction, palette and runtime asset inventory |
 | [`02-Architecture/`](02-Architecture/) | Runtime boundaries, source layout, ownership and dependency rules |
 | [`03-Technical/`](03-Technical/) | Rendering, simulation, input, integration and implementation details |
 | [`04-Workflow/`](04-Workflow/) | Development, asset, build and validation workflow |
@@ -19,6 +19,7 @@ This directory is the authoritative documentation root for **Night Courier**.
 - [`01-Design/Game-Design-Document.md`](01-Design/Game-Design-Document.md) — gameplay/product baseline.
 - [`01-Design/Scope-and-Constraints.md`](01-Design/Scope-and-Constraints.md) — scope and complexity limits.
 - [`01-Design/Art-Direction-and-Color-Palette.md`](01-Design/Art-Direction-and-Color-Palette.md) — authoritative visual identity, Night Courier 20 palette and sprite color rules.
+- [`01-Design/Asset-Inventory-and-Sprite-Requirements.md`](01-Design/Asset-Inventory-and-Sprite-Requirements.md) — authoritative runtime sprite/audio inventory, procedural-vs-authored rules, asset budgets, naming, pivots and production batches.
 
 ## Current authoritative baseline
 
@@ -33,6 +34,8 @@ This directory is the authoritative documentation root for **Night Courier**.
 9. Unity owns persistent progression/high scores; the web game owns only the current run state.
 10. The initial code architecture targets **12 TypeScript source files**. Extraction beyond that requires demonstrated complexity, not anticipated future use.
 11. The visual baseline is **late-1990s Japanese-inspired urban night** using the custom **Night Courier 20** palette: cool dark neutrals dominate, practical warm city lights support material readability, and neon is restricted to selective accents.
+12. Runtime art remains deliberately small: approximately **34–49 unique images** / **45–70 frames including variants**, with five required player steering poses, three traffic behavior classes, roughly 12–15 reusable props, 4–6 parallax images, 4–6 VFX textures and 5–8 UI icons.
+13. Road geometry, lane markings, simple HUD bars/text and basic screen effects are procedural; concept-art breadth does not expand gameplay scope automatically.
 
 ## Change discipline
 

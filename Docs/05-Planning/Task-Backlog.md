@@ -36,7 +36,7 @@ This backlog is ordered for implementation. Tasks should remain small enough to 
 
 ## M3 — Traffic / cargo / scoring
 
-- [ ] M3.1 Define traffic data model and visual types.
+- [ ] M3.1 Define traffic data model with only `car`, `van` and `truck` gameplay types.
 - [ ] M3.2 Implement traffic spawn/recycling.
 - [ ] M3.3 Project traffic into road view.
 - [ ] M3.4 Implement road-space collision envelopes.
@@ -58,22 +58,28 @@ This backlog is ordered for implementation. Tasks should remain small enough to 
 - [ ] M4.7 Add final time/cargo bonus.
 - [ ] M4.8 Add simple result rank.
 
-## M5 — Presentation / controls
+## M5 — Presentation / controls / production assets
 
 - [ ] M5.1 Implement touch steering/throttle/brake controls.
 - [ ] M5.2 Verify orientation/aspect-ratio scaling behavior.
 - [ ] M5.3 Add optional gamepad mapping if it does not delay mobile completion.
 - [ ] M5.4 Establish the `Night Courier 20` palette tokens in code/asset documentation before final sprite production.
-- [ ] M5.5 Replace gameplay placeholders with player/traffic sprites using the approved palette/value hierarchy.
-- [ ] M5.6 Add background and roadside prop set with reduced contrast/saturation at depth.
-- [ ] M5.7 Validate player and traffic readability against representative night-city compositions.
-- [ ] M5.8 Add timer/score/cargo/combo HUD polish using semantic palette mappings.
-- [ ] M5.9 Verify nearest-neighbor/pixel-art scaling and remove visible smoothing/shimmer issues.
-- [ ] M5.10 Add one music track.
-- [ ] M5.11 Add required SFX.
-- [ ] M5.12 Add collision feedback.
-- [ ] M5.13 Add near-miss feedback.
-- [ ] M5.14 Implement pause/resume without time jump.
+- [ ] M5.5 Create runtime asset directories and lock naming/pivot conventions from `Asset-Inventory-and-Sprite-Requirements.md`.
+- [ ] M5.6 Produce/import Asset Batch A: five player steering poses, at least three traffic visuals, far skyline and mid skyline.
+- [ ] M5.7 Map traffic visuals to the existing `car`/`van`/`truck` behavior classes without adding new AI types.
+- [ ] M5.8 Validate player and traffic readability against representative night-city compositions at gameplay speed.
+- [ ] M5.9 Produce/import Asset Batch B: reusable 12–15 roadside/environment props plus required near parallax strips.
+- [ ] M5.10 Add remaining background/parallax images while keeping the initial target at approximately 4–6 images.
+- [ ] M5.11 Add timer/score/cargo/combo HUD polish using procedural text/bars plus only the required 5–8 gameplay icons.
+- [ ] M5.12 Add one readable local pixel/bitmap font family and verify redistribution license.
+- [ ] M5.13 Produce/import Asset Batch C VFX: small spark/smoke set and only justified optional visual variants.
+- [ ] M5.14 Verify nearest-neighbor/pixel-art scaling, pivots, transparent bounds and remove visible smoothing/shimmer issues.
+- [ ] M5.15 Add one music track.
+- [ ] M5.16 Add approximately eight required SFX, including engine, collision, near-miss, countdown/start and finish/UI feedback.
+- [ ] M5.17 Add collision feedback.
+- [ ] M5.18 Add near-miss feedback.
+- [ ] M5.19 Implement pause/resume without time jump.
+- [ ] M5.20 Audit runtime asset count against the documented ~34–49 unique-image budget before adding further content.
 
 ## M6 — Host bridge / Unity
 
@@ -97,12 +103,13 @@ This backlog is ordered for implementation. Tasks should remain small enough to 
 - [ ] M7.3 Exercise collision/near-miss edge cases.
 - [ ] M7.4 Test pause/resume repeatedly.
 - [ ] M7.5 Test browser standalone lifecycle.
-- [ ] M7.6 Test Unity offline lifecycle.
+- [ ] M7.6 Test Unity offline lifecycle with every required runtime sprite/font/audio asset available locally.
 - [ ] M7.7 Profile representative target mobile device.
 - [ ] M7.8 Fix P0/P1 defects.
 - [ ] M7.9 Final balance pass for timer/cargo/score.
-- [ ] M7.10 Final visual readability/palette consistency pass at gameplay speed.
-- [ ] M7.11 Synchronize docs with final implemented contracts.
+- [ ] M7.10 Final visual readability/palette consistency/asset-pivot pass at gameplay speed.
+- [ ] M7.11 Remove unused runtime/source-art files from the production package.
+- [ ] M7.12 Synchronize docs with final implemented contracts and asset inventory.
 
 ## Deferred backlog
 
@@ -110,10 +117,14 @@ Do not start these unless the initial game is already coherent and validated:
 
 - [ ] Additional tracks.
 - [ ] Additional player cars.
-- [ ] Cargo-type modifiers.
+- [ ] Police pursuit and police vehicle asset set.
+- [ ] Cargo-type modifiers and cargo-specific asset sets.
 - [ ] Larger route graph.
+- [ ] Multiple biome/environment packs.
+- [ ] Weather-specific art packs.
 - [ ] Track JSON/editor pipeline.
 - [ ] Dedicated HUD subsystem.
 - [ ] Dedicated audio subsystem.
+- [ ] Custom sprite-atlas/content-pipeline tooling without measured need.
 - [ ] Expanded master palette without a demonstrated material/readability problem.
 - [ ] Backend/cloud features.
