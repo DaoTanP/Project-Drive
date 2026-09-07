@@ -1,0 +1,76 @@
+name: WebGame CI
+
+on:
+  push:
+    branches:
+      - main
+      - 'feat/**'
+    paths:
+      - 'WebGame/**'
+      - '.github/workflows/webgame-ci.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'WebGame/**'
+      - '.github/workflows/webgame-ci.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: WebGame
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.12.0'
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify static output
+        run: |
+          python3 -m http.server 4173 --directory dist >/tmp/night-courier-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          for attempt in {1..10}; do
+            if curl --fail --silent --show-error http://127.0.0.1:4173/ >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/night-courier-http.log
+          exit 1
+
+      - name: Commit generated lockfile
+        if: github.event_name == 'push' && github.ref != 'refs/heads/main'
+        working-directory: .
+        run: |
+          if git status --porcelain -- WebGame/package-lock.json | grep -q .; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add WebGame/package-lock.json
+            git commit -m 'chore: lock webgame dependencies'
+            git push
+          fi
