@@ -1,0 +1,114 @@
+# Task Backlog
+
+This backlog is ordered for implementation. Tasks should remain small enough to validate independently and should not introduce deferred systems unless a blocking requirement is demonstrated.
+
+## M0 — Bootstrap
+
+- [ ] M0.1 Initialize Vite + TypeScript project under `WebGame/`.
+- [ ] M0.2 Add Phaser 4 and commit the package lockfile.
+- [ ] M0.3 Configure 960x540 logical resolution and responsive scaling.
+- [ ] M0.4 Add `dev`, `build` and `typecheck` scripts.
+- [ ] M0.5 Add minimal Boot/Game/Result scene flow.
+- [ ] M0.6 Verify production `dist/` runs from a local static host.
+
+## M1 — Road / player slice
+
+- [ ] M1.1 Define minimal `RoadSegmentSpec` data.
+- [ ] M1.2 Implement visible-segment lookup.
+- [ ] M1.3 Implement pseudo-3D perspective projection.
+- [ ] M1.4 Render straight road.
+- [ ] M1.5 Add curves.
+- [ ] M1.6 Add hills only after curve projection is stable.
+- [ ] M1.7 Implement normalized keyboard input.
+- [ ] M1.8 Implement acceleration, drag/braking and max speed.
+- [ ] M1.9 Implement lateral steering.
+- [ ] M1.10 Clamp abnormal frame delta after focus changes.
+
+## M2 — Run lifecycle
+
+- [ ] M2.1 Add `GameState` initialization.
+- [ ] M2.2 Track world/route progress.
+- [ ] M2.3 Add run timer.
+- [ ] M2.4 Add destination completion condition.
+- [ ] M2.5 Add timeout failure condition.
+- [ ] M2.6 Implement ResultScene summary.
+- [ ] M2.7 Implement standalone restart.
+
+## M3 — Traffic / cargo / scoring
+
+- [ ] M3.1 Define traffic data model and visual types.
+- [ ] M3.2 Implement traffic spawn/recycling.
+- [ ] M3.3 Project traffic into road view.
+- [ ] M3.4 Implement road-space collision envelopes.
+- [ ] M3.5 Apply speed loss on collision.
+- [ ] M3.6 Add cargo condition and collision damage.
+- [ ] M3.7 Implement near-miss proximity state.
+- [ ] M3.8 Prevent duplicate near-miss awards per pass.
+- [ ] M3.9 Implement combo multiplier/reset.
+- [ ] M3.10 Implement final score calculation.
+
+## M4 — Final route
+
+- [ ] M4.1 Author opening section.
+- [ ] M4.2 Implement one route split decision.
+- [ ] M4.3 Author short/risky branch.
+- [ ] M4.4 Author long/safer branch.
+- [ ] M4.5 Author final section/destination.
+- [ ] M4.6 Tune total run duration to 4–5 minutes.
+- [ ] M4.7 Add final time/cargo bonus.
+- [ ] M4.8 Add simple result rank.
+
+## M5 — Presentation / controls
+
+- [ ] M5.1 Implement touch steering/throttle/brake controls.
+- [ ] M5.2 Verify orientation/aspect-ratio scaling behavior.
+- [ ] M5.3 Add optional gamepad mapping if it does not delay mobile completion.
+- [ ] M5.4 Replace gameplay placeholders with player/traffic sprites.
+- [ ] M5.5 Add background and roadside prop set.
+- [ ] M5.6 Add timer/score/cargo/combo HUD polish.
+- [ ] M5.7 Add one music track.
+- [ ] M5.8 Add required SFX.
+- [ ] M5.9 Add collision feedback.
+- [ ] M5.10 Add near-miss feedback.
+- [ ] M5.11 Implement pause/resume without time jump.
+
+## M6 — Host bridge / Unity
+
+- [ ] M6.1 Define TypeScript protocol types for v1 messages.
+- [ ] M6.2 Implement browser fallback in `HostBridge.ts`.
+- [ ] M6.3 Implement `READY` emission.
+- [ ] M6.4 Implement and validate `INIT` handling.
+- [ ] M6.5 Implement `PAUSE` and `RESUME` handling.
+- [ ] M6.6 Implement `GAME_COMPLETED`.
+- [ ] M6.7 Implement `GAME_ABORTED` / exit path.
+- [ ] M6.8 Build static offline package with no remote dependencies.
+- [ ] M6.9 Host package in fullscreen Unity WebView.
+- [ ] M6.10 Validate result payload before Unity persistence.
+- [ ] M6.11 Persist/reload high score in Unity.
+- [ ] M6.12 Destroy WebView and validate second launch in same session.
+
+## M7 — Quality / stabilization
+
+- [ ] M7.1 Typecheck and production-build clean pass.
+- [ ] M7.2 Add targeted unit tests for pure scoring/projection logic where valuable.
+- [ ] M7.3 Exercise collision/near-miss edge cases.
+- [ ] M7.4 Test pause/resume repeatedly.
+- [ ] M7.5 Test browser standalone lifecycle.
+- [ ] M7.6 Test Unity offline lifecycle.
+- [ ] M7.7 Profile representative target mobile device.
+- [ ] M7.8 Fix P0/P1 defects.
+- [ ] M7.9 Final balance pass for timer/cargo/score.
+- [ ] M7.10 Synchronize docs with final implemented contracts.
+
+## Deferred backlog
+
+Do not start these unless the initial game is already coherent and validated:
+
+- [ ] Additional tracks.
+- [ ] Additional player cars.
+- [ ] Cargo-type modifiers.
+- [ ] Larger route graph.
+- [ ] Track JSON/editor pipeline.
+- [ ] Dedicated HUD subsystem.
+- [ ] Dedicated audio subsystem.
+- [ ] Backend/cloud features.
