@@ -36,6 +36,29 @@ export const NIGHT_COURIER_PALETTE = {
 
 export type NightCourierPaletteToken = keyof typeof NIGHT_COURIER_PALETTE;
 
+export const PLAYER_TEXTURE_KEYS = [
+  'player_rear_hard_left',
+  'player_rear_left',
+  'player_rear_center',
+  'player_rear_right',
+  'player_rear_hard_right',
+] as const;
+
+export type PlayerTextureKey = (typeof PLAYER_TEXTURE_KEYS)[number];
+
+export const PLAYER_TEXTURE_PATHS: Record<PlayerTextureKey, string> = {
+  player_rear_hard_left: 'assets/player/player_rear_hard_left.png',
+  player_rear_left: 'assets/player/player_rear_left.png',
+  player_rear_center: 'assets/player/player_rear_center.png',
+  player_rear_right: 'assets/player/player_rear_right.png',
+  player_rear_hard_right: 'assets/player/player_rear_hard_right.png',
+};
+
+export const PLAYER_SOURCE_SIZE = 256;
+export const PLAYER_DISPLAY_SIZE = 256;
+export const PLAYER_ANCHOR_X = 128;
+export const PLAYER_ANCHOR_Y = 232;
+
 export const gameConfig: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   parent: 'game-container',
