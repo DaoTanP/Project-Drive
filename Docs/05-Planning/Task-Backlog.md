@@ -57,16 +57,20 @@ M2 uses a temporary 30-second / 60%-of-demo-road validation run only. It does no
 
 ## M3 — Traffic / cargo / scoring
 
-- [ ] M3.1 Define traffic data model with only `car`, `van` and `truck` gameplay types.
-- [ ] M3.2 Implement traffic spawn/recycling.
-- [ ] M3.3 Project traffic into road view and add segment/range indexing only if it simplifies measured queries.
-- [ ] M3.4 Implement road-space collision envelopes, including crossed-range/swept handling if fixed-step speed can skip meaningful overlap.
-- [ ] M3.5 Apply speed loss on collision.
-- [ ] M3.6 Add cargo condition and collision damage.
-- [ ] M3.7 Implement near-miss proximity state.
-- [ ] M3.8 Prevent duplicate near-miss awards per pass.
-- [ ] M3.9 Implement combo multiplier/reset.
-- [ ] M3.10 Implement final score calculation.
+**Status:** implementation, deterministic rule validation and production-browser traffic/result smoke validation complete. Production vehicle art and impact/near-miss feedback remain M5 scope; final time/cargo bonuses and rank remain M4 scope.
+
+- [x] M3.1 Define traffic data model with only `car`, `van` and `truck` gameplay types.
+- [x] M3.2 Implement fixed-pool traffic spawn/recycling.
+- [x] M3.3 Project traffic into road view using current-frame road projection data; no additional spatial index was justified at this scope.
+- [x] M3.4 Implement road-space collision envelopes with swept longitudinal handling for crossed-range interaction.
+- [x] M3.5 Apply speed loss on collision.
+- [x] M3.6 Add cargo condition and collision damage.
+- [x] M3.7 Implement near-miss proximity/arming state.
+- [x] M3.8 Prevent duplicate collision/near-miss awards per vehicle pass.
+- [x] M3.9 Implement combo multiplier/reset and bounded collision penalty.
+- [x] M3.10 Implement M3 driving-score result calculation and result summary fields; final time/cargo bonuses remain M4.
+
+See [`M3-Traffic-Cargo-Scoring.md`](M3-Traffic-Cargo-Scoring.md) and [`../06-Quality/M3-Traffic-Cargo-Scoring-Acceptance.md`](../06-Quality/M3-Traffic-Cargo-Scoring-Acceptance.md).
 
 ## M4 — Final route
 
