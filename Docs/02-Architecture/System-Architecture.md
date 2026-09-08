@@ -71,6 +71,8 @@ Only serialized messages cross the boundary. Neither side references implementat
 - `ResultScene` may publish a final result through `HostBridge`.
 - `Player`, `Road`, `Traffic`, `Scoring` and `GameState` remain host-independent.
 - `Input` converts keyboard/touch/gamepad into a normalized gameplay input state.
+- `GameScene` owns frame orchestration and the small fixed-step simulation accumulator; no separate timing service is introduced.
+- `Road` owns both compact authored road-section data and compiled runtime road segments. The distinction is conceptual/data-oriented and does not justify another source file in the initial architecture.
 
 ## 5. Initial source layout
 
@@ -108,7 +110,7 @@ Logical resolution, Phaser renderer choice, scene registration and small gamepla
 Load assets, initialize host handshake and enter gameplay.
 
 ### `GameScene.ts`
-Composition root and frame-level orchestration. It owns HUD composition and coordinates the gameplay modules.
+Composition root and frame-level orchestration. It owns HUD composition, coordinates gameplay modules and advances gameplay through a bounded fixed-step simulation loop while Phaser remains responsible for the host render frame.
 
 ### `ResultScene.ts`
 Display final result, restart/exit actions and publish host result.
@@ -117,7 +119,19 @@ Display final result, restart/exit actions and publish host result.
 Small mutable run-state model and its initialization contract.
 
 ### `Road.ts`
-Track definition, segment lookup, pseudo-3D projection, road rendering, route branch and roadside placement.
+Own the complete small road subsystem without introducing a track framework. Responsibilities include:
+
+- compact authored road sections;
+- compilation into fixed-length runtime segments;
+- segment lookup and interpolation;
+- world/camera/screen projection data;
+- straight-road, curve and hill geometry;
+- road occlusion/clipping information;
+- procedural road rendering;
+- the single route branch when that milestone is reached;
+- roadside placement metadata.
+
+Reference material may inform the projection/curve algorithms, but its source-code organization is not part of this contract.
 
 ### `Player.ts`
 Arcade motion, lateral position, collision response and cargo damage.
@@ -129,7 +143,7 @@ Traffic lifecycle, movement, projection, collision and near-miss detection.
 Near-miss/combo rules and final score/rank calculation.
 
 ### `Input.ts`
-Keyboard, touch and optional gamepad mapped to a normalized input state.
+Keyboard, touch and optional gamepad mapped to a normalized gameplay input state.
 
 ### `HostBridge.ts`
 Host detection, message serialization/deserialization, lifecycle messages and result publication.
@@ -147,12 +161,30 @@ The initial architecture has no:
 - generalized vehicle hierarchy;
 - renderer abstraction;
 - physics abstraction;
+- simulation-clock/time-service abstraction;
+- dedicated track compiler/editor module;
 - UI framework;
 - audio manager;
 - track editor pipeline.
 
 Add one only when a concrete requirement cannot remain clean within the current boundaries.
 
-## 8. Extensibility policy
+## 8. Reference-informed, implementation-independent policy
+
+External pseudo-3D racer references are used to understand proven ideas such as:
+
+- segment-based road representation;
+- perspective projection from world to camera to screen space;
+- accumulated lateral displacement for curves;
+- elevation-based hills;
+- horizon/crest occlusion;
+- fixed-step simulation reasoning;
+- data-oriented traffic indexing.
+
+They do **not** define Night Courier's classes, function names, constants, control flow, file layout, renderer API usage or gameplay constraints. We implement the underlying ideas independently in Phaser/TypeScript within the frozen Night Courier boundaries.
+
+See [`../03-Technical/Pseudo-3D-Road-Research-Notes.md`](../03-Technical/Pseudo-3D-Road-Research-Notes.md) for the research summary and accepted/rejected ideas.
+
+## 9. Extensibility policy
 
 Expected future changes such as a second track or another traffic sprite should first be represented as data inside the existing modules. Extraction into new systems occurs only after repeated implementation demonstrates a stable abstraction.

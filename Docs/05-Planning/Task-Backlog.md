@@ -13,16 +13,31 @@ This backlog is ordered for implementation. Tasks should remain small enough to 
 
 ## M1 — Road / player slice
 
-- [ ] M1.1 Define minimal `RoadSegmentSpec` data.
-- [ ] M1.2 Implement visible-segment lookup.
-- [ ] M1.3 Implement pseudo-3D perspective projection.
-- [ ] M1.4 Render straight road.
-- [ ] M1.5 Add curves.
-- [ ] M1.6 Add hills only after curve projection is stable.
+M1 uses the algorithmic guidance summarized in [`../03-Technical/Pseudo-3D-Road-Research-Notes.md`](../03-Technical/Pseudo-3D-Road-Research-Notes.md), but implementation must remain original to Night Courier's Phaser/TypeScript architecture.
+
+- [ ] M1.1 Define compact authored `RoadSectionSpec` data and the internal fixed-length runtime road-segment/endpoint model in `Road.ts`.
+- [ ] M1.2 Compile authored sections into runtime segments and implement stable segment lookup/interpolation by track position.
+- [ ] M1.3 Implement world -> camera -> screen perspective projection with bounded visible-segment lookup.
+- [ ] M1.4 Render a straight procedural road near-to-far, including a basic crest/max-visible-Y rejection boundary.
+- [ ] M1.5 Add curves using accumulated lateral displacement, fractional-base-segment continuity and simple enter/hold/leave easing.
+- [ ] M1.6 Add hills/elevation and crest clipping only after straight/curve projection is stable.
 - [ ] M1.7 Implement normalized keyboard input.
-- [ ] M1.8 Implement acceleration, drag/braking and max speed.
-- [ ] M1.9 Implement lateral steering.
-- [ ] M1.10 Clamp abnormal frame delta after focus changes.
+- [ ] M1.8 Implement acceleration, drag/braking and max speed without coupling vehicle tuning to road-segment length.
+- [ ] M1.9 Implement lateral steering and tune any curve-induced lateral effect as arcade behavior rather than physical simulation.
+- [ ] M1.10 Add a bounded 60 Hz fixed-step simulation accumulator and discard/clamp abnormal frame gaps after focus/lifecycle changes.
+
+### M1 explicit non-goals
+
+Do not add during M1:
+
+- traffic;
+- roadside sprite system beyond debug/projection proof if strictly needed;
+- generalized track editor/JSON pipeline;
+- multiple-road/fork renderer;
+- generic 3D transform framework;
+- separate simulation-clock service;
+- one Phaser GameObject per road segment;
+- copied source structure or implementation from external racer references.
 
 ## M2 — Run lifecycle
 
@@ -38,8 +53,8 @@ This backlog is ordered for implementation. Tasks should remain small enough to 
 
 - [ ] M3.1 Define traffic data model with only `car`, `van` and `truck` gameplay types.
 - [ ] M3.2 Implement traffic spawn/recycling.
-- [ ] M3.3 Project traffic into road view.
-- [ ] M3.4 Implement road-space collision envelopes.
+- [ ] M3.3 Project traffic into road view and add segment/range indexing only if it simplifies measured queries.
+- [ ] M3.4 Implement road-space collision envelopes, including crossed-range/swept handling if fixed-step speed can skip meaningful overlap.
 - [ ] M3.5 Apply speed loss on collision.
 - [ ] M3.6 Add cargo condition and collision damage.
 - [ ] M3.7 Implement near-miss proximity state.
@@ -50,7 +65,7 @@ This backlog is ordered for implementation. Tasks should remain small enough to 
 ## M4 — Final route
 
 - [ ] M4.1 Author opening section.
-- [ ] M4.2 Implement one route split decision.
+- [ ] M4.2 Implement one route split decision by selecting the subsequent authored road-section sequence; do not build simultaneous multi-road geometry unless readability testing requires it.
 - [ ] M4.3 Author short/risky branch.
 - [ ] M4.4 Author long/safer branch.
 - [ ] M4.5 Author final section/destination.
@@ -120,6 +135,7 @@ Do not start these unless the initial game is already coherent and validated:
 - [ ] Police pursuit and police vehicle asset set.
 - [ ] Cargo-type modifiers and cargo-specific asset sets.
 - [ ] Larger route graph.
+- [ ] Simultaneous multi-road/fork renderer.
 - [ ] Multiple biome/environment packs.
 - [ ] Weather-specific art packs.
 - [ ] Track JSON/editor pipeline.
