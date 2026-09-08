@@ -1,0 +1,94 @@
+name: M4 Traffic Regression Smoke
+
+on:
+  push:
+    branches:
+      - feat/m4-final-route-environments
+    paths:
+      - '.github/workflows/m4-regression-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.12.0'
+          package-manager-cache: false
+      - name: Run M3 traffic/scoring regression
+        working-directory: WebGame
+        run: |
+          npm ci
+          npm install --no-save --package-lock=false tsx@4.20.5
+          cat > .m4-regression.ts <<'TS'
+          import assert from 'node:assert/strict';
+          import { Player } from './src/game/Player';
+          import { Scoring } from './src/game/Scoring';
+          import { Traffic } from './src/game/Traffic';
+
+          function runUntilEvent(traffic: Traffic, roadX: number, event: 'collision' | 'nearMiss') {
+            let previous = 0;
+            let current = 0;
+            let collisions = 0;
+            let nearMisses = 0;
+            let cargoDamage = 0;
+            let speedRetention = 1;
+            for (let step = 0; step < 35; step += 1) {
+              previous = current;
+              current += 200;
+              const result = traffic.update(1 / 60, previous, current, roadX);
+              collisions += result.collisions;
+              nearMisses += result.nearMisses;
+              cargoDamage += result.cargoDamage;
+              speedRetention = Math.min(speedRetention, result.speedRetention);
+              if ((event === 'collision' && collisions > 0) || (event === 'nearMiss' && nearMisses > 0)) {
+                for (let extra = 0; extra < 4; extra += 1) {
+                  previous = current;
+                  current += 200;
+                  const duplicate = traffic.update(1 / 60, previous, current, roadX);
+                  collisions += duplicate.collisions;
+                  nearMisses += duplicate.nearMisses;
+                }
+                break;
+              }
+            }
+            return { collisions, nearMisses, cargoDamage, speedRetention };
+          }
+
+          const collision = runUntilEvent(new Traffic(), -0.52, 'collision');
+          assert.equal(collision.collisions, 1);
+          assert.equal(collision.nearMisses, 0);
+          assert.equal(collision.cargoDamage, 7);
+          assert.equal(collision.speedRetention, 0.68);
+
+          const nearMiss = runUntilEvent(new Traffic(), -0.05, 'nearMiss');
+          assert.equal(nearMiss.collisions, 0);
+          assert.equal(nearMiss.nearMisses, 1);
+
+          const scoring = new Scoring();
+          scoring.applyStep(1, 0);
+          assert.equal(scoring.score, 250);
+          assert.equal(scoring.combo, 2);
+          scoring.applyStep(1, 0);
+          assert.equal(scoring.score, 750);
+          assert.equal(scoring.combo, 3);
+          scoring.applyStep(0, 1);
+          assert.equal(scoring.score, 600);
+          assert.equal(scoring.combo, 1);
+
+          const player = new Player();
+          player.speed = 2000;
+          player.applyCollision(11, 0.5);
+          assert.equal(player.speed, 1000);
+          assert.equal(player.cargoHealth, 89);
+
+          const traffic = new Traffic();
+          traffic.setGapScale(0.1);
+          traffic.setGapScale(99);
+          TS
+          ./node_modules/.bin/tsx .m4-regression.ts
+          rm .m4-regression.ts
