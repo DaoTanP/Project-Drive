@@ -10,38 +10,44 @@ Do not mark a production-art task complete because an asset merely loads or beca
 
 ### Code/config
 
-- [ ] `Night Courier 20` is represented once as named runtime tokens matching `NC-00` through `NC-19`.
-- [ ] Phaser production config enables pixel-art texture filtering.
-- [ ] Logical resolution remains `960 x 540` with aspect-preserving FIT scaling.
-- [ ] No physics/gameplay rules changed as part of presentation foundation.
-- [ ] No runtime source module was added solely for palette/assets/touch abstraction.
+- [x] `Night Courier 20` is exposed as the canonical named runtime token map matching `NC-00` through `NC-19`.
+- [x] Phaser production config enables pixel-art texture filtering.
+- [x] Logical resolution remains `960 x 540` with aspect-preserving FIT scaling.
+- [x] No physics/gameplay rules changed as part of presentation foundation.
+- [x] No runtime source module was added solely for palette/assets/touch abstraction.
+
+Existing M4 placeholder render code may retain local semantic aliases temporarily; new production presentation must resolve from the canonical palette rather than introduce another competing master palette.
 
 ### Asset layout
 
-- [ ] `WebGame/public/assets/` contains only the approved top-level category directories.
-- [ ] No source-art working files are stored in runtime directories.
-- [ ] No zone-specific runtime directory hierarchy was introduced.
+- [x] `WebGame/public/assets/` contains only the approved top-level category directories.
+- [x] No source-art working files are stored in runtime directories.
+- [x] No zone-specific runtime directory hierarchy was introduced.
 
 ### Boot/load behavior
 
-- [ ] `BootScene` has a preload-stage status/error boundary.
-- [ ] Required asset load failure prevents transition to `GameScene`.
-- [ ] Failure state lists failed asset keys clearly enough for QA/debugging.
-- [ ] M5A does not add fake production assets solely to populate the queue.
+- [x] `BootScene` has a preload-stage status/error boundary.
+- [x] Required asset load failure prevents transition to `GameScene`.
+- [x] Failure state lists failed asset keys clearly enough for QA/debugging.
+- [x] M5A does not add fake production assets solely to populate the queue.
+
+Failure behavior was validated with a temporary CI workspace that injected a missing required image without changing repository runtime source. The test asserted `Boot` remained active, `Game` remained inactive, and the failed key appeared in the status text.
 
 ### Browser/mobile shell
 
-- [ ] Landscape viewport displays the game normally.
-- [ ] Portrait mobile-like viewport displays the rotate-device notice.
-- [ ] Canvas is not stretched to fill a non-16:9 viewport.
-- [ ] Pixel canvas scaling is configured for hard-edged presentation.
+- [x] Landscape viewport displays the game normally.
+- [x] Portrait mobile-like viewport displays the rotate-device notice.
+- [x] Canvas is not stretched to fill a non-16:9 viewport.
+- [x] Pixel canvas scaling is configured for hard-edged presentation.
+
+Structural production-browser checks passed at `960x540`, `844x390`, `1024x768`, and portrait `390x844`.
 
 ### Build gate
 
-- [ ] `npm ci` passes.
-- [ ] `npm run typecheck` passes.
-- [ ] `npm run build` passes.
-- [ ] built `dist/` serves successfully from a local static host.
+- [x] `npm ci` passes.
+- [x] `npm run typecheck` passes.
+- [x] `npm run build` passes.
+- [x] built `dist/` serves successfully from a local static host.
 
 ## 3. Touch acceptance — M5.1/M5.2
 
@@ -57,12 +63,14 @@ Do not mark M5.1 complete until:
 
 Do not mark M5.2 complete until representative viewport tests include:
 
-- [ ] 16:9 landscape;
-- [ ] 19.5:9 or 20:9 landscape;
-- [ ] 4:3 landscape/tablet-like viewport;
-- [ ] portrait orientation fallback;
-- [ ] no gameplay-coordinate distortion;
-- [ ] no critical HUD/control clipping.
+- [x] 16:9 landscape shell;
+- [x] 19.5:9 or 20:9 landscape shell;
+- [x] 4:3 landscape/tablet-like shell;
+- [x] portrait orientation fallback;
+- [x] no gameplay-coordinate distortion;
+- [ ] no critical production HUD/touch-control clipping.
+
+M5.2 therefore remains open until the touch and production HUD surfaces exist.
 
 ## 4. Player Batch A acceptance
 
