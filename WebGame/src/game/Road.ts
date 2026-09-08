@@ -645,6 +645,47 @@ function drawLandmark(
     graphics.fillRect(p.x - roadHalf * 0.95, top + 80 * s, roadHalf * 0.78, 300 * s);
     graphics.fillStyle(NC.cyan, 1);
     graphics.fillRect(p.x + roadHalf * 0.17, top + 80 * s, roadHalf * 0.78, 300 * s);
+
+    // Environmental preview: rocky/chevron risky cue on the left,
+    // open forest/tree cue on the right. These remain presentation-only.
+    const cueBottom = bottom - 20 * s;
+    const riskyX = p.x - roadHalf * 1.75;
+    const safeX = p.x + roadHalf * 1.75;
+    graphics.fillStyle(NC.n4, 1);
+    graphics.fillTriangle(
+      riskyX - 420 * s,
+      cueBottom,
+      riskyX,
+      cueBottom - 760 * s,
+      riskyX + 420 * s,
+      cueBottom,
+    );
+    graphics.fillStyle(NC.score, 1);
+    graphics.fillRect(riskyX - 170 * s, cueBottom - 400 * s, 340 * s, 190 * s);
+    graphics.fillStyle(NC.n0, 1);
+    graphics.fillTriangle(
+      riskyX - 80 * s,
+      cueBottom - 305 * s,
+      riskyX + 55 * s,
+      cueBottom - 365 * s,
+      riskyX + 55 * s,
+      cueBottom - 245 * s,
+    );
+
+    graphics.fillStyle(NC.n3, 1);
+    for (const offset of [-300, 0, 300]) {
+      const treeX = safeX + offset * s;
+      graphics.fillTriangle(
+        treeX - 210 * s,
+        cueBottom,
+        treeX,
+        cueBottom - 700 * s,
+        treeX + 210 * s,
+        cueBottom,
+      );
+    }
+    graphics.fillStyle(NC.cyan, 1);
+    graphics.fillRect(safeX - 330 * s, cueBottom - 170 * s, 660 * s, Math.max(2, 45 * s));
     return;
   }
 
