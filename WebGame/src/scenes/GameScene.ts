@@ -13,6 +13,7 @@ import { Player } from '../game/Player';
 import { Road } from '../game/Road';
 import { Scoring } from '../game/Scoring';
 import { Traffic } from '../game/Traffic';
+import { PLAYER_SOURCE_SIZE, type PlayerTextureKey } from './BootScene';
 
 const FIXED_STEP = 1 / 60;
 const MAX_FRAME_DELTA = 0.15;
@@ -20,6 +21,12 @@ const MAX_CATCH_UP_STEPS = 5;
 const RUN_TIME_LIMIT_SECONDS = 300;
 const RISKY_TRAFFIC_GAP_SCALE = 0.82;
 const SAFE_TRAFFIC_GAP_SCALE = 1.15;
+
+const PLAYER_DISPLAY_SIZE = 256;
+const PLAYER_ANCHOR_X = 128;
+const PLAYER_ANCHOR_Y = 232;
+const PLAYER_SCREEN_Y = 0.84;
+const VISUAL_STEER_RESPONSE_PER_SECOND = 5.5;
 
 export class GameScene extends Phaser.Scene {
   private road!: Road;
@@ -30,11 +37,12 @@ export class GameScene extends Phaser.Scene {
   private runState!: GameState;
   private roadGraphics!: Phaser.GameObjects.Graphics;
   private trafficGraphics!: Phaser.GameObjects.Graphics;
-  private playerGraphics!: Phaser.GameObjects.Graphics;
+  private playerSprite!: Phaser.GameObjects.Image;
   private hudText!: Phaser.GameObjects.Text;
   private routePromptText!: Phaser.GameObjects.Text;
   private accumulator = 0;
-  private lastSteer = 0;
+  private visualSteer = 0;
+  private currentPlayerTexture: PlayerTextureKey = 'player_rear_center';
   private routeChoice: RouteBranch | null = null;
   private routeChoiceNoticeUntil = 0;
   private transitionStarted = false;
@@ -45,7 +53,8 @@ export class GameScene extends Phaser.Scene {
 
   create(): void {
     this.accumulator = 0;
-    this.lastSteer = 0;
+    this.visualSteer = 0;
+    this.currentPlayerTexture = 'player_rear_center';
     this.routeChoice = null;
     this.routeChoiceNoticeUntil = 0;
     this.transitionStarted = false;
@@ -62,7 +71,16 @@ export class GameScene extends Phaser.Scene {
 
     this.roadGraphics = this.add.graphics().setDepth(0);
     this.trafficGraphics = this.add.graphics().setDepth(5);
-    this.playerGraphics = this.add.graphics().setDepth(10);
+    this.playerSprite = this.add
+      .image(
+        this.scale.width * 0.5,
+        this.scale.height * PLAYER_SCREEN_Y,
+        this.currentPlayerTexture,
+      )
+      .setOrigin(PLAYER_ANCHOR_X / PLAYER_SOURCE_SIZE, PLAYER_ANCHOR_Y / PLAYER_SOURCE_SIZE)
+      .setDisplaySize(PLAYER_DISPLAY_SIZE, PLAYER_DISPLAY_SIZE)
+      .setDepth(10);
+
     this.hudText = this.add
       .text(20, 18, '', {
         fontFamily: 'monospace',
@@ -86,7 +104,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(30);
 
     this.add
-      .text(this.scale.width - 20, 18, 'M4 FINAL ROUTE\nARROWS or WASD', {
+      .text(this.scale.width - 20, 18, 'M5 PLAYER SPRITES\nARROWS or WASD', {
         align: 'right',
         fontFamily: 'monospace',
         fontSize: '14px',
@@ -104,7 +122,11 @@ export class GameScene extends Phaser.Scene {
 
     const frameDelta = Math.min(Math.max(deltaMs / 1000, 0), MAX_FRAME_DELTA);
     const input = this.controls.sample();
-    this.lastSteer = input.steer;
+    this.visualSteer = moveTowards(
+      this.visualSteer,
+      input.steer,
+      VISUAL_STEER_RESPONSE_PER_SECOND * frameDelta,
+    );
     this.accumulator += frameDelta;
 
     let simulationSteps = 0;
@@ -226,7 +248,7 @@ export class GameScene extends Phaser.Scene {
       playerRouteDistance: this.runState.routeDistance,
     });
 
-    this.drawPlayerPlaceholder(width, height);
+    this.updatePlayerSprite(width, height);
     this.updateRoutePrompt();
 
     const speedKph = Math.round((this.player.speed / this.player.maxSpeed) * 180);
@@ -243,6 +265,16 @@ export class GameScene extends Phaser.Scene {
       `ZONE    ${zone.toUpperCase()}`,
       `BRANCH  ${(this.routeChoice ?? 'UNDECIDED').toUpperCase()}`,
     ]);
+  }
+
+  private updatePlayerSprite(width: number, height: number): void {
+    const nextTexture = playerTextureForVisualSteer(this.visualSteer);
+    if (nextTexture !== this.currentPlayerTexture) {
+      this.currentPlayerTexture = nextTexture;
+      this.playerSprite.setTexture(nextTexture);
+    }
+
+    this.playerSprite.setPosition(width * 0.5, height * PLAYER_SCREEN_Y);
   }
 
   private updateRoutePrompt(): void {
@@ -272,26 +304,20 @@ export class GameScene extends Phaser.Scene {
 
     this.routePromptText.setText('');
   }
+}
 
-  private drawPlayerPlaceholder(width: number, height: number): void {
-    const graphics = this.playerGraphics;
-    graphics.clear();
-    graphics.setPosition(width * 0.5, height * 0.84);
-    graphics.setRotation(this.lastSteer * 0.035);
+function playerTextureForVisualSteer(visualSteer: number): PlayerTextureKey {
+  if (visualSteer <= -0.68) return 'player_rear_hard_left';
+  if (visualSteer < -0.18) return 'player_rear_left';
+  if (visualSteer < 0.18) return 'player_rear_center';
+  if (visualSteer < 0.68) return 'player_rear_right';
+  return 'player_rear_hard_right';
+}
 
-    graphics.fillStyle(0x10131b, 1);
-    graphics.fillRect(-31, -9, 9, 22);
-    graphics.fillRect(22, -9, 9, 22);
-    graphics.fillStyle(0xe8c96d, 1);
-    graphics.fillRect(-27, -15, 54, 30);
-    graphics.fillTriangle(-19, -15, -10, -27, 10, -27);
-    graphics.fillTriangle(-19, -15, 10, -27, 19, -15);
-    graphics.fillStyle(0x9fc0c9, 1);
-    graphics.fillRect(-10, -23, 20, 8);
-    graphics.fillStyle(0xe56b6f, 1);
-    graphics.fillRect(-22, 8, 8, 4);
-    graphics.fillRect(14, 8, 8, 4);
-  }
+function moveTowards(current: number, target: number, maxDelta: number): number {
+  if (current < target) return Math.min(current + maxDelta, target);
+  if (current > target) return Math.max(current - maxDelta, target);
+  return target;
 }
 
 function formatClock(seconds: number): string {
