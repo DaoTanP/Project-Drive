@@ -1,26 +1,11 @@
 import Phaser from 'phaser';
 
-import { NIGHT_COURIER_PALETTE } from '../config';
-
-export const PLAYER_TEXTURE_KEYS = [
-  'player_rear_hard_left',
-  'player_rear_left',
-  'player_rear_center',
-  'player_rear_right',
-  'player_rear_hard_right',
-] as const;
-
-export type PlayerTextureKey = (typeof PLAYER_TEXTURE_KEYS)[number];
-
-const PLAYER_TEXTURE_PATHS: Record<PlayerTextureKey, string> = {
-  player_rear_hard_left: 'assets/player/player_rear_hard_left.png',
-  player_rear_left: 'assets/player/player_rear_left.png',
-  player_rear_center: 'assets/player/player_rear_center.png',
-  player_rear_right: 'assets/player/player_rear_right.png',
-  player_rear_hard_right: 'assets/player/player_rear_hard_right.png',
-};
-
-export const PLAYER_SOURCE_SIZE = 256;
+import {
+  NIGHT_COURIER_PALETTE,
+  PLAYER_SOURCE_SIZE,
+  PLAYER_TEXTURE_KEYS,
+  PLAYER_TEXTURE_PATHS,
+} from '../config';
 
 export class BootScene extends Phaser.Scene {
   private readonly failedAssetKeys: string[] = [];
