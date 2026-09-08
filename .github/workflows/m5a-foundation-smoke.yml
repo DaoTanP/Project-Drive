@@ -1,0 +1,100 @@
+name: M5A Foundation Smoke
+
+on:
+  push:
+    branches:
+      - feat/m5a-production-foundation
+    paths:
+      - 'WebGame/**'
+      - '.github/workflows/m5a-foundation-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  foundation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.12.0'
+          package-manager-cache: false
+      - name: Build production package
+        working-directory: WebGame
+        run: |
+          npm ci
+          npm run typecheck
+          npm run build
+          npm install --no-save --package-lock=false puppeteer-core@24.16.0
+      - name: Verify runtime asset tree
+        working-directory: WebGame
+        run: |
+          for dir in player traffic props backgrounds fx ui fonts audio; do
+            test -d "public/assets/$dir"
+          done
+      - name: Verify landscape and portrait shell
+        working-directory: WebGame
+        run: |
+          python3 -m http.server 4173 --directory dist >/tmp/m5a-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          for attempt in {1..20}; do
+            curl --fail --silent http://127.0.0.1:4173/ >/dev/null && break
+            sleep 1
+          done
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import puppeteer from 'puppeteer-core';
+
+          const browser = await puppeteer.launch({
+            executablePath: '/usr/bin/google-chrome',
+            headless: true,
+            args: ['--no-sandbox', '--disable-gpu'],
+          });
+
+          async function inspect(width, height, expectPortraitNotice) {
+            const page = await browser.newPage();
+            await page.setViewport({ width, height, deviceScaleFactor: 1 });
+            await page.goto('http://127.0.0.1:4173/', { waitUntil: 'domcontentloaded' });
+            await page.waitForSelector('canvas');
+            await new Promise((resolve) => setTimeout(resolve, 250));
+            const state = await page.evaluate(() => {
+              const canvas = document.querySelector('canvas');
+              const game = document.querySelector('#game-container');
+              const notice = document.querySelector('#orientation-notice');
+              if (!(canvas instanceof HTMLCanvasElement) || !(game instanceof HTMLElement) || !(notice instanceof HTMLElement)) {
+                throw new Error('missing production shell elements');
+              }
+              const rect = canvas.getBoundingClientRect();
+              return {
+                canvasWidth: rect.width,
+                canvasHeight: rect.height,
+                gameVisibility: getComputedStyle(game).visibility,
+                noticeDisplay: getComputedStyle(notice).display,
+                imageRendering: getComputedStyle(canvas).imageRendering,
+              };
+            });
+
+            if (expectPortraitNotice) {
+              assert.equal(state.gameVisibility, 'hidden');
+              assert.equal(state.noticeDisplay, 'flex');
+            } else {
+              assert.equal(state.gameVisibility, 'visible');
+              assert.equal(state.noticeDisplay, 'none');
+              assert.ok(state.canvasWidth <= width + 1);
+              assert.ok(state.canvasHeight <= height + 1);
+              assert.ok(Math.abs(state.canvasWidth / state.canvasHeight - 16 / 9) < 0.02);
+            }
+            assert.equal(state.imageRendering, 'pixelated');
+            await page.close();
+          }
+
+          await inspect(960, 540, false);
+          await inspect(844, 390, false);
+          await inspect(1024, 768, false);
+          await inspect(390, 844, true);
+          await browser.close();
+          NODE
