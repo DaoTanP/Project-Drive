@@ -17,7 +17,6 @@ export interface TrafficRenderView {
 }
 
 interface TrafficCar {
-  id: number;
   type: TrafficType;
   roadX: number;
   z: number;
@@ -108,7 +107,6 @@ export class Traffic {
   constructor() {
     this.cars = SPAWN_PATTERN.map((spawn, index) =>
       createTrafficCar(
-        index,
         spawn.type,
         spawn.roadX,
         INITIAL_SPAWN_DISTANCE + index * INITIAL_SPACING,
@@ -229,14 +227,8 @@ export class Traffic {
   }
 }
 
-function createTrafficCar(
-  id: number,
-  type: TrafficType,
-  roadX: number,
-  z: number,
-): TrafficCar {
+function createTrafficCar(type: TrafficType, roadX: number, z: number): TrafficCar {
   return {
-    id,
     type,
     roadX,
     z,
@@ -283,8 +275,18 @@ function drawTrafficPlaceholder(
     return;
   }
 
-  graphics.fillStyle(0x10131b, 0.9);
-  graphics.fillRect(left - width * 0.04, top + height * 0.72, width * 1.08, Math.min(height * 0.2, visibleHeight));
+  const shadowTop = top + height * 0.72;
+  const shadowBottom = Math.min(clippedBottom, shadowTop + height * 0.2);
+
+  if (shadowBottom > shadowTop) {
+    graphics.fillStyle(0x10131b, 0.9);
+    graphics.fillRect(
+      left - width * 0.04,
+      shadowTop,
+      width * 1.08,
+      shadowBottom - shadowTop,
+    );
+  }
 
   graphics.fillStyle(tuning.color, 1);
   graphics.fillRect(left, top, width, visibleHeight);
