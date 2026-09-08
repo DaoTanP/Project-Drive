@@ -40,7 +40,7 @@ Exit criteria:
 **Goal:** the game can start, finish or fail.
 
 Deliverables:
-- track position/progression;
+- route position/progression;
 - timer;
 - destination/end condition;
 - fail state when time expires;
@@ -67,37 +67,55 @@ Exit criteria:
 - near misses cannot double-award;
 - player can intentionally trade risk for score.
 
-## Milestone 4 — Final route structure
+## Milestone 4 — Final route and environment composition
 
-**Goal:** reach the 4–5 minute target session.
+**Goal:** produce the complete 4–5 minute route with one meaningful branch and five readable presentation zones without expanding into a general biome system.
+
+Authoritative zone design: [`../01-Design/Environment-Zones-and-Roadside-Composition.md`](../01-Design/Environment-Zones-and-Roadside-Composition.md).
 
 Deliverables:
-- full opening/final sections;
+- minimal authored zone identity for `city`, `rural`, `forest`, `mountain-pass`, `tunnel`;
+- deterministic ambient roadside placement plus explicit authored landmarks;
+- shared outdoor background/parallax profile selection;
+- city opening;
+- rural/outskirts transition;
 - one route split;
-- short/risky vs long/safer branch characteristics;
+- short/risky `mountain-pass -> tunnel` branch;
+- long/safer `forest -> rural` branch;
+- simple tunnel enclosure using the existing projected road renderer;
+- shared city-fringe/depot finish;
 - completion scoring based on cargo/time;
 - rank calculation.
 
 Exit criteria:
-- full run duration is within target after tuning;
-- both branches are viable and behaviorally distinct.
+- full run duration is within 4–5 minutes after tuning;
+- both branches are viable and behaviorally/visually distinct;
+- `city`, `rural`, `forest`, `mountain-pass` and `tunnel` can each be recognized quickly from composition without explicit zone labels;
+- roadside placement is deterministic;
+- tunnel entry/interior/exit reads correctly without a separate scene or full 3D mesh;
+- no `BiomeManager`, environment ECS or per-zone gameplay system is introduced.
 
 ## Milestone 5 — Mobile controls and presentation
 
-**Goal:** minigame is usable as a polished standalone web build.
+**Goal:** minigame is usable as a polished standalone web build with production assets replacing placeholders.
 
 Deliverables:
 - touch controls;
 - optional gamepad support if low-risk;
 - HUD polish;
-- player/traffic/environment art pass;
+- player/traffic art pass;
+- approximately 15–18 shared roadside/environment props supporting all five zones;
+- approximately 5–7 shared background/parallax images total;
+- final environment composition/readability pass;
 - audio;
 - collision/near-miss feedback;
 - pause/resume behavior.
 
 Exit criteria:
 - complete run is playable on target mobile browser/WebView class hardware;
-- controls remain readable at common aspect ratios.
+- controls remain readable at common aspect ratios;
+- all five zones remain distinct while using one coherent palette/asset vocabulary;
+- runtime art remains within the revised small asset budget unless a reviewed exception exists.
 
 ## Milestone 6 — Unity host integration
 
@@ -123,7 +141,8 @@ Exit criteria:
 Deliverables:
 - bug fixes;
 - balance pass;
-- mobile performance profiling;
+- route/zone readability pass;
+- mobile performance profiling across dense city, natural road and tunnel cases;
 - repeated lifecycle tests;
 - final acceptance pass;
 - docs synchronized with implemented contracts.
