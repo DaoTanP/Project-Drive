@@ -1,0 +1,139 @@
+name: Player Sprite 256 Smoke
+
+on:
+  push:
+    branches:
+      - feat/player-sprite-256
+    paths:
+      - '.github/workflows/player-sprite-256-smoke.yml'
+      - 'WebGame/**'
+
+permissions:
+  contents: read
+
+jobs:
+  player-sprite:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.12.0'
+          package-manager-cache: false
+      - name: Expose test-only game handle
+        working-directory: WebGame
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('src/main.ts')
+          text = path.read_text()
+          text = text.replace(
+              'new Phaser.Game(gameConfig);',
+              "(window as typeof window & { __playerSpriteGame?: Phaser.Game }).__playerSpriteGame = new Phaser.Game(gameConfig);",
+          )
+          path.write_text(text)
+          PY
+      - name: Build production package
+        working-directory: WebGame
+        run: |
+          npm ci
+          npm run typecheck
+          npm run build
+          npm install --no-save --package-lock=false puppeteer-core@24.16.0
+      - name: Verify player sprite presentation
+        working-directory: WebGame
+        run: |
+          python3 -m http.server 4173 --directory dist >/tmp/player-sprite-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          for attempt in {1..20}; do
+            curl --fail --silent http://127.0.0.1:4173/ >/dev/null && break
+            sleep 1
+          done
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import puppeteer from 'puppeteer-core';
+
+          const browser = await puppeteer.launch({
+            executablePath: '/usr/bin/google-chrome',
+            headless: true,
+            args: ['--no-sandbox', '--disable-gpu'],
+          });
+          const page = await browser.newPage();
+          await page.setViewport({ width: 960, height: 540, deviceScaleFactor: 1 });
+          const warnings = [];
+          page.on('console', (msg) => {
+            if (msg.type() === 'warn') warnings.push(msg.text());
+          });
+          await page.goto('http://127.0.0.1:4173/', { waitUntil: 'domcontentloaded' });
+          await page.waitForSelector('canvas');
+          await page.waitForFunction(() => {
+            const game = window.__playerSpriteGame;
+            return Boolean(game && game.scene.isActive('Game'));
+          });
+
+          const initial = await page.evaluate(() => {
+            const game = window.__playerSpriteGame;
+            const scene = game.scene.getScene('Game');
+            const sprite = scene.playerSprite;
+            return {
+              texture: sprite.texture.key,
+              displayWidth: sprite.displayWidth,
+              displayHeight: sprite.displayHeight,
+              originX: sprite.originX,
+              originY: sprite.originY,
+            };
+          });
+          assert.equal(initial.texture, 'player_rear_center');
+          assert.equal(initial.displayWidth, 256);
+          assert.equal(initial.displayHeight, 256);
+          assert.ok(Math.abs(initial.originX - 0.5) < 1e-6);
+          assert.ok(Math.abs(initial.originY - 0.90625) < 1e-6);
+
+          const pressSamplesPromise = page.evaluate(async () => {
+            const game = window.__playerSpriteGame;
+            const scene = game.scene.getScene('Game');
+            const samples = [];
+            for (let i = 0; i < 40; i += 1) {
+              samples.push(scene.playerSprite.texture.key);
+              await new Promise((resolve) => setTimeout(resolve, 10));
+            }
+            return samples;
+          });
+          await page.keyboard.down('ArrowLeft');
+          const pressSamples = await pressSamplesPromise;
+          assert.ok(pressSamples.includes('player_rear_left'));
+          assert.ok(pressSamples.includes('player_rear_hard_left'));
+          assert.ok(
+            pressSamples.indexOf('player_rear_left') < pressSamples.indexOf('player_rear_hard_left'),
+            'moderate-left pose must appear before hard-left',
+          );
+
+          const releaseSamplesPromise = page.evaluate(async () => {
+            const game = window.__playerSpriteGame;
+            const scene = game.scene.getScene('Game');
+            const samples = [];
+            for (let i = 0; i < 40; i += 1) {
+              samples.push(scene.playerSprite.texture.key);
+              await new Promise((resolve) => setTimeout(resolve, 10));
+            }
+            return samples;
+          });
+          await page.keyboard.up('ArrowLeft');
+          const releaseSamples = await releaseSamplesPromise;
+          assert.ok(releaseSamples.includes('player_rear_left'));
+          assert.ok(releaseSamples.includes('player_rear_center'));
+          assert.ok(
+            releaseSamples.indexOf('player_rear_left') < releaseSamples.lastIndexOf('player_rear_center'),
+            'moderate-left pose must appear before returning to center',
+          );
+
+          assert.ok(
+            warnings.some((message) => message.includes('should be 256x256')),
+            'staging high-resolution files should emit production-size warnings',
+          );
+
+          await browser.close();
+          NODE
