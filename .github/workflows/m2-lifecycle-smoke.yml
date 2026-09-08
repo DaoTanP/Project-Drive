@@ -86,7 +86,7 @@ jobs:
           await new Promise((resolve) => setTimeout(resolve, 600));
           await page.screenshot({ path: '/tmp/m2-00-start.png' });
 
-          await new Promise((resolve) => setTimeout(resolve, 31000));
+          await new Promise((resolve) => setTimeout(resolve, 36000));
           await page.screenshot({ path: '/tmp/m2-01-timeout.png' });
 
           await page.keyboard.press('KeyR');
