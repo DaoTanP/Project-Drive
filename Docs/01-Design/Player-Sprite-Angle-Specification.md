@@ -37,6 +37,8 @@ independently illustrated cars at unrelated three-quarter angles
 
 Consistency has higher priority than added detail.
 
+The current production phase uses exactly **one pitch family: FLAT**. The five steering sprites defined by this document are all flat-road gameplay sprites. `UPHILL` and `DOWNHILL` pitch families are documented only as a future extension and must not be generated, implemented or counted in the current asset budget unless later gameplay evidence explicitly justifies them.
+
 ## 3. Canonical sprite format
 
 The initial player steering set uses:
@@ -455,16 +457,19 @@ A player steering frame is accepted only when:
 
 ## 22. Scope guard
 
-The initial release remains a **five-steering-frame** player set.
+The initial release remains a **five-steering-frame FLAT player set**.
 
 Do not expand immediately to:
 
 - seven or fifteen yaw states;
-- multiple vertical/pitch sprite families;
+- `UPHILL` or `DOWNHILL` player pitch families;
+- any other multiple vertical/pitch sprite families;
 - manually authored distance/mipmap variants for the player;
 - rollover/spin/crash rotation sprite sequences.
 
 If five states visibly snap during representative gameplay, first verify angle progression and registration against this spec. Only then consider seven states as a measured polish expansion.
+
+If road-grade presentation later makes the single FLAT family visibly incorrect, first validate whether road projection/camera logic can solve the problem without new vehicle art. Only after representative gameplay demonstrates a persistent visual mismatch should the deferred pitch-family guidance in Section 25 become eligible for production.
 
 ## 23. Master consistency checklist
 
@@ -695,3 +700,199 @@ Reject when any of the following occurs:
 - sprite is soft/anti-aliased/painterly rather than production pixel art;
 - palette/style materially diverges from neighboring states;
 - adjacent-frame swapping reads as two different illustrations rather than one rotating car.
+
+## 25. Deferred pitch-family geometry guidance
+
+This section records the production geometry learned from classic arcade-racer pitch families so the decision does not need to be rediscovered later. It is **not part of the current production asset scope**.
+
+### 25.1 Current status
+
+Current production is locked to:
+
+```text
+FLAT only
+x
+5 yaw states
+=
+5 required player steering frames
+```
+
+The existing names remain authoritative:
+
+```text
+player_rear_hard_left
+player_rear_left
+player_rear_center
+player_rear_right
+player_rear_hard_right
+```
+
+Do not rename them to include `_flat` merely to anticipate a future system.
+
+Do not produce `UPHILL` or `DOWNHILL` sprites now. Do not add runtime pitch-state selection, pitch-family loading, extra player atlas slots or expanded asset-budget counts now.
+
+### 25.2 Pitch semantics
+
+If pitch families are approved later, Night Courier will define pitch by **vehicle/chassis orientation relative to the fixed rear gameplay camera**, not by an inferred Turbo Out Run row name.
+
+The semantic convention is:
+
+- `FLAT`: neutral chassis pitch, canonical gameplay family;
+- `UPHILL`: vehicle points uphill / nose-up relative to FLAT;
+- `DOWNHILL`: vehicle points downhill / nose-down relative to FLAT.
+
+The source arcade sheet demonstrates that discrete pitch families can improve road-grade readability, but it does not establish authoritative names or exact physical pitch values for Night Courier.
+
+### 25.3 Effective visual pitch targets
+
+If activated later, use these as restrained art targets rather than physics values:
+
+| Family | Effective visual pitch |
+|---|---:|
+| `UPHILL` | approximately `+6° to +8°` nose-up |
+| `FLAT` | `0°` |
+| `DOWNHILL` | approximately `-6° to -8°` nose-down |
+| practical hard limit | approximately `+/-10°` |
+
+Do not map road slope degrees directly 1:1 to sprite pitch. The sprite family exists to preserve visual readability at `64 x 64`, not to simulate continuous rigid-body rotation.
+
+### 25.4 Fixed-camera and registration contract
+
+All future pitch families must preserve the same camera used by FLAT:
+
+- same rear-camera position;
+- same camera elevation;
+- same downward camera pitch;
+- same camera distance;
+- same perspective strength;
+- same apparent vehicle scale.
+
+The primary rear tire/contact anchor remains the registration authority:
+
+| Metric | Target |
+|---|---:|
+| Canvas | `64 x 64 px` |
+| Anchor X | approximately `32 px` |
+| Primary rear tire/contact Y | approximately `58 px` |
+| Pitch-to-pitch rear-contact drift | ideal `0 px`, maximum `1 px` |
+| Preferred total silhouette height | `46-48 px` |
+| Absolute future pitch-family tolerance | `45-49 px` |
+
+Pitch must be expressed by re-authored projected geometry. Do **not** translate the complete sprite vertically to sell uphill/downhill motion.
+
+### 25.5 Geometric pitch cues
+
+At this scale, use three primary cues:
+
+1. projected top-surface exposure;
+2. rear-plane vertical exposure;
+3. front-versus-rear axle vertical relationship when a near-side front wheel is visible.
+
+Do not add extra deformation systems unless these three cues are insufficient in gameplay.
+
+#### Projected top-surface exposure
+
+Normalize FLAT to `1.00`.
+
+With the fixed rear camera convention above:
+
+| Family | Top-surface exposure | Practical 64 px change |
+|---|---:|---:|
+| `UPHILL` | approximately `0.75-0.85 x FLAT` | about `-2 to -3 px` |
+| `FLAT` | `1.00` | baseline |
+| `DOWNHILL` | approximately `1.15-1.25 x FLAT` | about `+2 to +3 px` |
+
+Relevant top surfaces include roof, spoiler top and other upward-facing body planes that remain readable at the current yaw.
+
+#### Rear-plane vertical exposure
+
+Normalize FLAT rear-plane vertical exposure to `1.00`.
+
+| Family | Rear-plane vertical exposure | Practical 64 px change |
+|---|---:|---:|
+| `UPHILL` | approximately `1.06-1.10 x FLAT` | about `+2 to +3 px` |
+| `FLAT` | `1.00` | baseline |
+| `DOWNHILL` | approximately `0.90-0.94 x FLAT` | about `-2 to -3 px` |
+
+These values describe screen-space exposure, not physical panel dimensions. If both top exposure and rear-plane height grow together, the asset is probably scaling rather than pitching and should be rejected.
+
+#### Axle relationship
+
+For yaw states where the near-side front wheel is visible:
+
+- `UPHILL`: front axle/wheel center should project approximately `1-2 px` higher than its FLAT counterpart;
+- `FLAT`: canonical baseline;
+- `DOWNHILL`: front axle/wheel center should project approximately `1-2 px` lower than its FLAT counterpart.
+
+Do not force a literal tire-contact pixel below the canvas. Preserve the rear contact anchor and express the cue through wheel-center/body geometry when necessary.
+
+### 25.6 Secondary geometry guardrails
+
+Rear glass and hatch geometry may support pitch readability, but they are secondary to the three primary cues.
+
+A useful future starting range is:
+
+| Metric | `UPHILL` | `FLAT` | `DOWNHILL` |
+|---|---:|---:|---:|
+| rear-glass projected height | approximately `1.04-1.08` | `1.00` | approximately `0.92-0.96` |
+| rear hatch/rear face | slightly expanded | baseline | slightly compressed |
+| top-surface visibility | reduced | baseline | increased |
+
+At `64 x 64`, rear-glass change should normally be only about `1 px`. Do not sacrifice vehicle identity to satisfy a theoretical ratio.
+
+Taillights, yellow plate and other semantic identifiers keep a minimum readable cluster even when perspective would mathematically shrink them. Gameplay readability outranks projection purity.
+
+### 25.7 Pitch and yaw are independent axes
+
+If pitch families are added later, every family must use the same yaw contract:
+
+```text
+Hard Left   -20° to -22°
+Left        -10° to -12°
+Center       0°
+Right       +10° to +12°
+Hard Right  +20° to +22°
+```
+
+Corresponding yaw states across pitch families should preserve the existing rear-plane **width** and side-exposure metrics within approximately `+/-1 px` where perspective permits.
+
+Pitch must not fake stronger or weaker steering. For example, `uphill_left` must still read as the same yaw strength as `flat_left`.
+
+### 25.8 Future production dependency order
+
+If gameplay evidence later approves pitch-family production, do not generate fifteen independent illustrations.
+
+Use:
+
+```text
+accepted FLAT five-state family
+        |
+        +-> UPHILL CENTER from FLAT CENTER
+        |      -> validate pitch geometry
+        |      -> derive corresponding yaw states
+        |
+        +-> DOWNHILL CENTER from FLAT CENTER
+               -> validate pitch geometry
+               -> derive corresponding yaw states
+```
+
+For a pitched yaw frame, reference priority should be:
+
+1. corresponding accepted FLAT yaw state for yaw/identity/registration;
+2. corresponding pitched `CENTER` for pitch geometry;
+3. FLAT `CENTER` for canonical scale;
+4. showcase art only for hidden physical details.
+
+Never mechanically rotate, shear or perspective-warp the accepted FLAT PNG as the final production solution. Such transforms may be used only as temporary construction guides before pixel-level re-authoring.
+
+### 25.9 Activation gate
+
+The pitch-family extension is eligible only if representative gameplay demonstrates a persistent problem such as:
+
+- hills/crests make the FLAT car appear visibly detached from road orientation;
+- road-grade transitions cause a strong visual contradiction that projection/camera tuning cannot solve;
+- playtesting shows the player vehicle needs discrete pitch cues to remain spatially readable.
+
+Do **not** activate the extension because the reference game contains more sprites or because additional art can be generated.
+
+Until that gate is met, `FLAT` remains the only production family and the five-state steering contract remains unchanged.

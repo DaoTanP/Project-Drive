@@ -84,11 +84,15 @@ Minimum production set:
 
 | Asset | Required | Notes |
 |---|---:|---|
-| `player_rear_center` | yes | default driving pose |
-| `player_rear_left` | yes | normal left steering |
-| `player_rear_hard_left` | yes | strong left steering |
-| `player_rear_right` | yes | normal right steering |
-| `player_rear_hard_right` | yes | strong right steering |
+| `player_rear_center` | yes | default FLAT driving pose |
+| `player_rear_left` | yes | FLAT normal left steering |
+| `player_rear_hard_left` | yes | FLAT strong left steering |
+| `player_rear_right` | yes | FLAT normal right steering |
+| `player_rear_hard_right` | yes | FLAT strong right steering |
+
+These five files are the complete current player pitch/yaw production set. They represent the **FLAT** pitch family even though `_flat` is intentionally not encoded in the filenames.
+
+Do not create `UPHILL` or `DOWNHILL` player variants in the current phase. Those families are a deferred extension described in [`Player-Sprite-Angle-Specification.md`](Player-Sprite-Angle-Specification.md) and become eligible only if representative gameplay demonstrates that road-grade presentation cannot be solved acceptably with the current projection/camera treatment.
 
 Recommended polish frames only if they materially improve feel:
 
@@ -102,6 +106,8 @@ A dedicated damaged-car sprite is **not required** for the initial game. Collisi
 
 - minimum: **5 frames**;
 - recommended maximum initial set: **8 frames**.
+
+The target count above excludes deferred pitch families. Do not increase the current player budget to `15` or more frames merely because a future `UPHILL / FLAT / DOWNHILL` geometry contract exists.
 
 ## 5. Traffic vehicles
 
@@ -339,6 +345,8 @@ Approximate starting sizes, to be validated visually rather than treated as stri
 
 The more important rule is consistent apparent pixel density. Assets must look like they belong to the same native pixel scale when projected into the gameplay view.
 
+For the five player steering frames specifically, the authoritative size is **64 x 64 px** as defined by [`Player-Sprite-Angle-Specification.md`](Player-Sprite-Angle-Specification.md); that explicit contract overrides the generic player-size estimate in the table above.
+
 ## 13. Sprite anchors and pivots
 
 Use predictable anchors so projected placement remains stable:
@@ -392,6 +400,8 @@ music_night_run.ogg
 
 Do not encode arbitrary version suffixes such as `_final2_new` into production names. Version history belongs in source control/source-art workflow.
 
+Do not preemptively rename the current player files to `player_rear_flat_*`. FLAT is the implicit canonical family for the current release; explicit pitch-family naming should be introduced only if the deferred pitch extension is actually approved.
+
 ## 16. Atlas strategy
 
 During early development, individual files are acceptable and preferable for iteration.
@@ -413,7 +423,7 @@ The atlas is an optimization/packaging step, not an architectural dependency.
 
 Produce first:
 
-- five player steering frames;
+- five FLAT player steering frames;
 - taxi/hatchback/van/truck rear views, with at least three traffic visuals available;
 - city far skyline;
 - city mid skyline/building strip.
@@ -456,6 +466,8 @@ Only after gameplay and composition are stable:
 - result-screen decoration;
 - optional final parallax/zone accent only if a representative zone still lacks distinction.
 
+Pitch-family expansion is **not** part of Batch C by default. It requires a separate gameplay-evidence gate under the player angle specification.
+
 ## 18. Asset budget summary
 
 | Group | Initial target |
@@ -472,12 +484,17 @@ Only after gameplay and composition are stable:
 
 The final unique-image budget should normally remain around **38–53 images**, with approximately **49–74 frames/images** after variants are counted.
 
+Deferred `UPHILL` / `DOWNHILL` player families are not included in this budget.
+
 If the initial release exceeds this substantially, review whether content has expanded beyond the intended minigame scope before producing more assets.
 
 ## 19. Explicitly not required for initial release
 
 Do not commission or generate these unless a later approved feature requires them:
 
+- player `UPHILL` pitch-family sprites;
+- player `DOWNHILL` pitch-family sprites;
+- runtime player pitch-family selection/atlas expansion;
 - police pursuit sprite set;
 - multiple player-car selections;
 - garage/customization assets;
