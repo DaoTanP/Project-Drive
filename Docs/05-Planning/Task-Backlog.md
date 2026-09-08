@@ -72,16 +72,39 @@ M2 uses a temporary 30-second / 60%-of-demo-road validation run only. It does no
 
 See [`M3-Traffic-Cargo-Scoring.md`](M3-Traffic-Cargo-Scoring.md) and [`../06-Quality/M3-Traffic-Cargo-Scoring-Acceptance.md`](../06-Quality/M3-Traffic-Cargo-Scoring-Acceptance.md).
 
-## M4 — Final route
+## M4 — Final route / environment composition
 
-- [ ] M4.1 Author opening section.
-- [ ] M4.2 Implement one route split decision by selecting the subsequent authored road-section sequence; do not build simultaneous multi-road geometry unless readability testing requires it.
-- [ ] M4.3 Author short/risky branch.
-- [ ] M4.4 Author long/safer branch.
-- [ ] M4.5 Author final section/destination.
-- [ ] M4.6 Tune total run duration to 4–5 minutes.
-- [ ] M4.7 Add final time/cargo bonus.
-- [ ] M4.8 Add simple result rank.
+M4 follows [`../01-Design/Environment-Zones-and-Roadside-Composition.md`](../01-Design/Environment-Zones-and-Roadside-Composition.md). The five zones are presentation profiles over the existing road renderer; they must not become five separate biome systems.
+
+- [ ] M4.1 Extend authored road-section semantics with the minimal `city | rural | forest | mountain-pass | tunnel` zone identity and branch/landmark metadata needed by the final route.
+- [ ] M4.2 Implement deterministic roadside placement from stable route/segment/zone inputs, supporting authored landmarks plus reusable ambient props without frame-time random re-rolls.
+- [ ] M4.3 Implement shared outdoor background/parallax profile selection with a compact shared set; do not create a unique three-layer stack per zone.
+- [ ] M4.4 Author the `city` opening with dense infrastructure/commercial composition and readable initial traffic flow.
+- [ ] M4.5 Author the `rural` outskirts transition so city-to-natural scenery changes gradually rather than teleporting at one segment.
+- [ ] M4.6 Implement one route split decision by selecting the subsequent authored section sequence; do not build simultaneous multi-road geometry unless readability testing requires it.
+- [ ] M4.7 Author the short/risky branch as `mountain-pass -> tunnel`, using tighter curves/elevation, guardrails/chevrons/rock silhouettes and authored tunnel entry/exit landmarks.
+- [ ] M4.8 Implement tunnel presentation using the existing road projection: simple procedural enclosure geometry plus repeated projected tunnel-light/reflector props; no separate scene or 3D tunnel mesh.
+- [ ] M4.9 Author the long/safer branch as `forest -> rural`, using darker vegetation silhouettes, more open sightlines and gentler geometry than the risky branch.
+- [ ] M4.10 Author the final city-fringe/depot approach and delivery destination marker, merging both branch outcomes into one finish sequence.
+- [ ] M4.11 Tune branch distances, traffic density and full-run timing to **4–5 minutes** while preserving a meaningful short/risky vs long/safer trade-off.
+- [ ] M4.12 Add final time/cargo bonus and simple result rank.
+- [ ] M4.13 Validate that all five zones are visually distinguishable within a few seconds using placeholder/procedural composition before commissioning additional zone-specific art.
+- [ ] M4.14 Validate route-choice readability through both UI/sign cue and environmental preview; only reconsider simultaneous fork geometry if the choice remains unreadable.
+
+### M4 explicit non-goals
+
+Do not add during M4:
+
+- `BiomeManager` / `EnvironmentSystem`;
+- separate scene per zone;
+- unique handling/physics by zone;
+- zone-specific traffic AI classes;
+- procedural terrain generation;
+- full 3D tunnel geometry;
+- independent full asset packs for each zone;
+- weather/day-night variants;
+- generalized prop grammar/editor;
+- additional route branches.
 
 ## M5 — Presentation / controls / production assets
 
@@ -90,11 +113,11 @@ See [`M3-Traffic-Cargo-Scoring.md`](M3-Traffic-Cargo-Scoring.md) and [`../06-Qua
 - [ ] M5.3 Add optional gamepad mapping if it does not delay mobile completion.
 - [ ] M5.4 Establish the `Night Courier 20` palette tokens in code/asset documentation before final sprite production.
 - [ ] M5.5 Create runtime asset directories and lock naming/pivot conventions from `Asset-Inventory-and-Sprite-Requirements.md`.
-- [ ] M5.6 Produce/import Asset Batch A: five player steering poses, at least three traffic visuals, far skyline and mid skyline.
+- [ ] M5.6 Produce/import Asset Batch A: five player steering poses, at least three traffic visuals, city far skyline and city mid/building strip.
 - [ ] M5.7 Map traffic visuals to the existing `car`/`van`/`truck` behavior classes without adding new AI types.
-- [ ] M5.8 Validate player and traffic readability against representative night-city compositions at gameplay speed.
-- [ ] M5.9 Produce/import Asset Batch B: reusable 12–15 roadside/environment props plus required near parallax strips.
-- [ ] M5.10 Add remaining background/parallax images while keeping the initial target at approximately 4–6 images.
+- [ ] M5.8 Validate player and traffic readability against representative `city`, `forest`, `mountain-pass` and `tunnel` compositions at gameplay speed.
+- [ ] M5.9 Produce/import Asset Batch B: approximately 15–18 reusable roadside/environment props shared across all five zones, prioritizing streetlight, guardrail, utility pole, tree cluster, rock/cliff cluster, chevron, tunnel portal/light and core signage.
+- [ ] M5.10 Add remaining shared background/parallax images while keeping the initial target at approximately **5–7 images total** across all outdoor zones; tunnel should normally reuse procedural enclosure instead of extra background stacks.
 - [ ] M5.11 Add timer/score/cargo/combo HUD polish using procedural text/bars plus only the required 5–8 gameplay icons.
 - [ ] M5.12 Add one readable local pixel/bitmap font family and verify redistribution license.
 - [ ] M5.13 Produce/import Asset Batch C VFX: small spark/smoke set and only justified optional visual variants.
@@ -104,7 +127,8 @@ See [`M3-Traffic-Cargo-Scoring.md`](M3-Traffic-Cargo-Scoring.md) and [`../06-Qua
 - [ ] M5.17 Add collision feedback.
 - [ ] M5.18 Add near-miss feedback.
 - [ ] M5.19 Implement pause/resume without time jump.
-- [ ] M5.20 Audit runtime asset count against the documented ~34–49 unique-image budget before adding further content.
+- [ ] M5.20 Audit runtime asset count against the documented **~38–53 unique-image** budget before adding further content.
+- [ ] M5.21 Perform final zone-composition pass so `city`, `rural`, `forest`, `mountain-pass` and `tunnel` remain distinct but visually coherent under one palette.
 
 ## M6 — Host bridge / Unity
 
@@ -124,15 +148,15 @@ See [`M3-Traffic-Cargo-Scoring.md`](M3-Traffic-Cargo-Scoring.md) and [`../06-Qua
 ## M7 — Quality / stabilization
 
 - [ ] M7.1 Typecheck and production-build clean pass.
-- [ ] M7.2 Add targeted unit tests for pure scoring/projection logic where valuable.
+- [ ] M7.2 Add targeted unit tests for pure scoring/projection/zone-placement logic where valuable.
 - [ ] M7.3 Exercise collision/near-miss edge cases.
 - [ ] M7.4 Test pause/resume repeatedly.
 - [ ] M7.5 Test browser standalone lifecycle.
 - [ ] M7.6 Test Unity offline lifecycle with every required runtime sprite/font/audio asset available locally.
-- [ ] M7.7 Profile representative target mobile device.
+- [ ] M7.7 Profile representative target mobile device across dense city, forest/mountain and tunnel sections.
 - [ ] M7.8 Fix P0/P1 defects.
-- [ ] M7.9 Final balance pass for timer/cargo/score.
-- [ ] M7.10 Final visual readability/palette consistency/asset-pivot pass at gameplay speed.
+- [ ] M7.9 Final balance pass for timer/cargo/score/branch trade-off.
+- [ ] M7.10 Final visual readability/palette consistency/asset-pivot/zone-transition pass at gameplay speed.
 - [ ] M7.11 Remove unused runtime/source-art files from the production package.
 - [ ] M7.12 Synchronize docs with final implemented contracts and asset inventory.
 
@@ -146,11 +170,13 @@ Do not start these unless the initial game is already coherent and validated:
 - [ ] Cargo-type modifiers and cargo-specific asset sets.
 - [ ] Larger route graph.
 - [ ] Simultaneous multi-road/fork renderer.
-- [ ] Multiple biome/environment packs.
+- [ ] Additional biome/environment families beyond the approved five route zones.
+- [ ] Independent asset packs for each environment zone.
 - [ ] Weather-specific art packs.
 - [ ] Track JSON/editor pipeline.
 - [ ] Dedicated HUD subsystem.
 - [ ] Dedicated audio subsystem.
+- [ ] Dedicated environment/biome subsystem without demonstrated need.
 - [ ] Custom sprite-atlas/content-pipeline tooling without measured need.
 - [ ] Expanded master palette without a demonstrated material/readability problem.
 - [ ] Backend/cloud features.
