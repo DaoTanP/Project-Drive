@@ -14,13 +14,29 @@ export interface GameState {
   outcome: RunOutcome | null;
 }
 
-export interface RunResult {
+export interface RunPerformance {
+  score: number;
+  cargoHealth: number;
+  nearMisses: number;
+  collisionCount: number;
+  bestCombo: number;
+}
+
+export interface RunResult extends RunPerformance {
   outcome: RunOutcome;
   elapsedSeconds: number;
   timeRemaining: number;
   routeDistance: number;
   destinationDistance: number;
 }
+
+const EMPTY_PERFORMANCE: RunPerformance = {
+  score: 0,
+  cargoHealth: 100,
+  nearMisses: 0,
+  collisionCount: 0,
+  bestCombo: 1,
+};
 
 export function createGameState(config: RunConfig): GameState {
   if (!Number.isFinite(config.timeLimitSeconds) || config.timeLimitSeconds <= 0) {
@@ -72,7 +88,10 @@ export function advanceGameState(
   }
 }
 
-export function createRunResult(state: GameState): RunResult {
+export function createRunResult(
+  state: GameState,
+  performance: RunPerformance = EMPTY_PERFORMANCE,
+): RunResult {
   if (!state.finished || state.outcome === null) {
     throw new Error('Cannot create a run result before the run has finished.');
   }
@@ -83,5 +102,18 @@ export function createRunResult(state: GameState): RunResult {
     timeRemaining: state.timeRemaining,
     routeDistance: state.routeDistance,
     destinationDistance: state.destinationDistance,
+    score: Math.max(0, Math.floor(performance.score)),
+    cargoHealth: clamp(performance.cargoHealth, 0, 100),
+    nearMisses: Math.max(0, Math.floor(performance.nearMisses)),
+    collisionCount: Math.max(0, Math.floor(performance.collisionCount)),
+    bestCombo: Math.max(1, Math.floor(performance.bestCombo)),
   };
+}
+
+function clamp(value: number, minimum: number, maximum: number): number {
+  if (!Number.isFinite(value)) {
+    return minimum;
+  }
+
+  return Math.min(maximum, Math.max(minimum, value));
 }
