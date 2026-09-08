@@ -28,6 +28,7 @@ interface RoadSegment {
   p1: RoadPoint;
   p2: RoadPoint;
   clipY: number;
+  projectionFrame: number;
 }
 
 export interface RoadRenderView {
@@ -35,6 +36,14 @@ export interface RoadRenderView {
   playerRoadX: number;
   viewportWidth: number;
   viewportHeight: number;
+}
+
+export interface RoadObjectProjection {
+  x: number;
+  y: number;
+  cameraZ: number;
+  pixelsPerWorld: number;
+  clipY: number;
 }
 
 const SEGMENT_LENGTH = 200;
@@ -70,6 +79,7 @@ const DEMO_SECTIONS: readonly RoadSectionSpec[] = [
 export class Road {
   private readonly segments: RoadSegment[];
   private readonly totalLength: number;
+  private projectionFrame = 0;
 
   constructor(sections: readonly RoadSectionSpec[] = DEMO_SECTIONS) {
     this.segments = compileSections(sections);
@@ -106,6 +116,44 @@ export class Road {
     return lerp(segment.p1.worldY, segment.p2.worldY, local);
   }
 
+  projectObject(
+    position: number,
+    roadX: number,
+    output: RoadObjectProjection,
+  ): boolean {
+    const wrapped = this.wrapPosition(position);
+    const segment = this.segments[this.segmentIndexAt(wrapped)];
+
+    if (segment.projectionFrame !== this.projectionFrame) {
+      return false;
+    }
+
+    const local = (wrapped % SEGMENT_LENGTH) / SEGMENT_LENGTH;
+    const near = segment.p1.screen;
+    const far = segment.p2.screen;
+    const cameraZ = lerp(near.cameraZ, far.cameraZ, local);
+    const halfWidth = lerp(near.halfWidth, far.halfWidth, local);
+    const centerX = lerp(near.x, far.x, local);
+    const y = lerp(near.y, far.y, local);
+
+    if (
+      cameraZ <= NEAR_CLIP ||
+      halfWidth <= 0 ||
+      !Number.isFinite(centerX) ||
+      !Number.isFinite(y)
+    ) {
+      return false;
+    }
+
+    output.x = centerX + roadX * halfWidth;
+    output.y = y;
+    output.cameraZ = cameraZ;
+    output.pixelsPerWorld = halfWidth / ROAD_HALF_WORLD_WIDTH;
+    output.clipY = segment.clipY;
+
+    return output.pixelsPerWorld > 0;
+  }
+
   render(graphics: Phaser.GameObjects.Graphics, view: RoadRenderView): void {
     const width = view.viewportWidth;
     const height = view.viewportHeight;
@@ -120,6 +168,7 @@ export class Road {
       -this.segments[cameraSegmentIndex].curve * CURVE_WORLD_SCALE * cameraSegmentFraction;
     let maxVisibleY = height;
 
+    this.projectionFrame += 1;
     graphics.clear();
 
     for (let step = 0; step < DRAW_DISTANCE; step += 1) {
@@ -151,6 +200,9 @@ export class Road {
         height,
       );
 
+      segment.projectionFrame = this.projectionFrame;
+      segment.clipY = maxVisibleY;
+
       roadCenterOffset += curveVelocity;
       curveVelocity += segment.curve * CURVE_WORLD_SCALE;
 
@@ -162,7 +214,6 @@ export class Road {
         continue;
       }
 
-      segment.clipY = maxVisibleY;
       drawSegment(graphics, segment, width);
       maxVisibleY = segment.p1.screen.y;
     }
@@ -200,6 +251,7 @@ function compileSections(sections: readonly RoadSectionSpec[]): RoadSegment[] {
         p1: createRoadPoint(p1Y, segmentIndex * SEGMENT_LENGTH),
         p2: createRoadPoint(p2Y, (segmentIndex + 1) * SEGMENT_LENGTH),
         clipY: Number.POSITIVE_INFINITY,
+        projectionFrame: -1,
       });
     }
 
