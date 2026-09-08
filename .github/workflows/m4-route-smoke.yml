@@ -129,6 +129,7 @@ jobs:
           const samples = [
             ['city', 'safe', 40000],
             ['rural', 'safe', 220000],
+            ['route-choice', 'safe', 288000],
             ['forest', 'safe', 360000],
             ['mountain-pass', 'risky', 360000],
             ['tunnel', 'risky', 500000],
