@@ -10,7 +10,7 @@ It answers three questions:
 2. which visual elements should be procedural instead of sprite-authored;
 3. what asset count and production constraints keep the game inside the approved small scope.
 
-The art direction, palette and color-role rules are defined separately in [`Art-Direction-and-Color-Palette.md`](Art-Direction-and-Color-Palette.md).
+The art direction, palette and color-role rules are defined separately in [`Art-Direction-and-Color-Palette.md`](Art-Direction-and-Color-Palette.md). Environment-zone composition and reuse rules are defined in [`Environment-Zones-and-Roadside-Composition.md`](Environment-Zones-and-Roadside-Composition.md).
 
 ## 2. Asset-scope principle
 
@@ -20,10 +20,12 @@ Night Courier is a pseudo-3D arcade racer. Richness should come primarily from:
 
 not from producing hundreds of unique sprites.
 
-The initial target is approximately:
+The initial route uses five presentation zones (`city`, `rural`, `forest`, `mountain-pass`, `tunnel`) but they share one asset vocabulary. They are not five independent biome packs.
 
-- **34–49 unique runtime images**;
-- approximately **45–70 sprite frames** when steering/brake/FX variants are counted;
+The revised initial target is approximately:
+
+- **38–53 unique runtime images**;
+- approximately **49–74 sprite frames/images** when steering/brake/FX variants are counted;
 - **1 music track**;
 - approximately **8 SFX**;
 - **1 pixel/bitmap font family** where licensing and readability permit.
@@ -40,6 +42,7 @@ Do not author conventional sprites for:
 - road perspective/curves/hills;
 - lane markers;
 - road shoulders/edge strips where simple polygons are sufficient;
+- simple tunnel side-wall/ceiling enclosure geometry;
 - timer/score/combo digits;
 - cargo-condition bar fill;
 - generic menu panels;
@@ -58,6 +61,7 @@ Sprites are reserved for elements where silhouette, material identity or decorat
 - player vehicle;
 - traffic vehicles;
 - roadside props and signage;
+- trees/rock clusters/portal elements that define zone silhouette;
 - background/parallax layers;
 - small particle/VFX textures;
 - selected HUD/gameplay icons.
@@ -109,7 +113,7 @@ Traffic logic remains limited to three behavioral/data classes:
 - `van`;
 - `truck`.
 
-Visual variety must not create new gameplay AI classes.
+Visual variety must not create new gameplay AI classes or zone-specific traffic logic.
 
 ### Initial production visuals
 
@@ -141,25 +145,40 @@ Police vehicles are concept-art material only for the initial release. Do not cr
 
 Roadside props are the primary source of environmental identity. Most are camera-facing or pseudo-billboard sprites projected by road depth.
 
-### Required/priority prop set
+The five route zones should normally be covered by approximately **15–18 unique prop images total**, not 15–18 per zone.
 
-Target approximately **12–15 unique prop types** selected from:
+### Required/priority shared prop set
+
+Prioritize:
 
 1. streetlight;
 2. guardrail segment/post;
-3. traffic cone;
-4. construction barricade;
-5. neon chevron/arrow board;
-6. convenience-store sign;
-7. overhead expressway sign/gantry;
-8. construction warning sign;
-9. tunnel entrance/sign element;
-10. toll-gate element;
-11. roadside utility box/crate;
-12. billboard;
-13. vertical neon/commercial sign;
-14. delivery destination/finish marker;
-15. small roadside direction/caution sign.
+3. utility pole;
+4. tree/tree-cluster;
+5. rock/cliff cluster or narrow strip;
+6. chevron/caution board;
+7. small direction/caution sign;
+8. overhead expressway sign/gantry;
+9. convenience-store/commercial sign;
+10. billboard;
+11. traffic cone;
+12. construction barricade;
+13. roadside utility box/crate;
+14. tunnel portal/sign element;
+15. tunnel light/reflector element;
+16. delivery destination/finish marker;
+17. optional low field/vegetation cluster;
+18. optional small rural structure/shed silhouette.
+
+The optional last two should be produced only if rural/forest readability remains weak after composition with the shared vocabulary.
+
+### Zone reuse expectations
+
+- `city`: streetlights, gantries, commercial signs, billboards, construction props, guardrails;
+- `rural`: utility poles, guardrails, vegetation, sparse signs/lights, optional small structure;
+- `forest`: tree clusters, guardrails, reflectors/caution boards, sparse utility infrastructure near transitions;
+- `mountain-pass`: guardrails, chevrons, rock/cliff clusters, sparse trees, tunnel warning/portal elements;
+- `tunnel`: portal, tunnel light/reflector, caution/utility elements plus procedural enclosure geometry.
 
 Directional props should be horizontally flipped at runtime where valid rather than authored twice.
 
@@ -171,40 +190,44 @@ A prop is valuable when it can be:
 - mirrored;
 - recolored within approved palette constraints;
 - combined with different neighboring props;
-- placed at different densities across sub-areas.
+- placed at different densities across zones;
+- used as a transition cue between adjacent zones.
 
 Do not create unique props solely to make a screenshot less repetitive.
 
 ## 7. Background and parallax assets
 
-The city must feel larger than the asset count through layered parallax.
+The route must feel larger than the asset count through layered parallax and selective reuse.
 
-### Required layers
+### Required/shared layers
 
-Recommended set:
+Recommended compact set:
 
-- `skyline_far`;
-- `skyline_mid`;
-- `buildings_near_a`;
-- `buildings_near_b`;
-- optional landmark/tower layer;
-- optional industrial/alternate near strip if needed for branch differentiation.
+- `bg_city_far` — city far skyline;
+- `bg_city_mid` — city mid/building strip;
+- optional `bg_city_near` if roadside sprites alone do not create enough city depth;
+- `bg_ridge_far` — distant ridge/mountain silhouette reused by rural/forest/mountain-pass;
+- `bg_vegetation_mid` — field/tree-line strip reused by rural/forest;
+- optional `bg_forest_rock_near` — selective near natural strip for forest/pass differentiation;
+- optional landmark/depot layer only if final destination needs it.
+
+Tunnel normally disables normal outdoor parallax and uses procedural enclosure plus repeated projected tunnel fixtures.
 
 ### Runtime model
 
-Use approximately three depth bands:
+Use approximately three depth bands when outdoors:
 
 ```text
-far skyline   -> low contrast / low saturation / slow parallax
-mid buildings -> medium contrast / medium parallax
-near layer    -> stronger contrast / faster parallax
+far background -> low contrast / low saturation / slow parallax
+mid strip       -> medium contrast / medium parallax
+near layer      -> stronger contrast / faster parallax
 ```
 
 ### Target count
 
-- **4–6 images**.
+- **5–7 images** total across the full route.
 
-Do not build dozens of individually simulated city buildings for the initial version.
+Do not author a separate far/mid/near image triplet for each zone. Do not build dozens of individually simulated city buildings, trees or mountains for the initial version.
 
 ## 8. Gameplay VFX assets
 
@@ -295,7 +318,7 @@ Target approximately **8 SFX**, prioritized as:
 7. route-choice/checkpoint cue;
 8. finish/result/UI-confirm cue.
 
-Exact grouping may change during audio implementation. Do not build a large dynamic-engine audio system before the basic loop is validated.
+Exact grouping may change during audio implementation. Tunnel reverb or zone-specific audio processing is not required for the initial scope.
 
 ## 12. Native-size guidance
 
@@ -309,6 +332,8 @@ Approximate starting sizes, to be validated visually rather than treated as stri
 | traffic car | around `64 x 48` to `96 x 64` |
 | truck | around `96 x 80` |
 | small/medium prop | around `32 x 64` to `128 x 128` |
+| tree/rock cluster | around `64 x 96` to `192 x 192` depending on reuse |
+| tunnel portal element | around `128 x 128` to `256 x 192` depending on composition |
 | UI icon | around `24 x 24` or `32 x 32` |
 | parallax strip | typically `512–1024+ px` wide depending on tiling needs |
 
@@ -320,7 +345,8 @@ Use predictable anchors so projected placement remains stable:
 
 - vehicles: bottom-center near tire/road contact line;
 - vertical roadside props: bottom-center at ground contact;
-- hanging/overhead props: explicit authored pivot matching their support/road alignment;
+- tree/rock clusters: bottom-center or explicitly documented ground-contact anchor;
+- hanging/overhead/tunnel props: explicit authored pivot matching their support/road alignment;
 - UI icons: center or top-left according to HUD layout, but remain consistent within a category.
 
 Transparent padding should be kept controlled. Excess inconsistent padding makes pseudo-3D scaling and collision/readability tuning harder.
@@ -341,19 +367,23 @@ WebGame/public/assets/
 └── audio/
 ```
 
-Source PSD/Aseprite/working files should remain outside runtime asset directories. Runtime folders contain only exported assets needed by the build.
+Do not create separate runtime directories per environment zone unless asset volume later justifies it. Source PSD/Aseprite/working files should remain outside runtime asset directories.
 
 ## 15. Naming convention
 
-Prefer lowercase kebab-case or snake_case consistently. Recommended examples:
+Prefer lowercase snake_case consistently. Recommended examples:
 
 ```text
 player_rear_center.png
 player_rear_hard_left.png
 traffic_taxi_rear.png
 prop_streetlight.png
-prop_neon_arrow.png
-bg_skyline_far.png
+prop_tree_cluster_01.png
+prop_rock_cluster_01.png
+prop_tunnel_portal.png
+prop_tunnel_light.png
+bg_city_far.png
+bg_ridge_far.png
 fx_spark_01.png
 ui_cargo.png
 sfx_collision_01.ogg
@@ -385,28 +415,35 @@ Produce first:
 
 - five player steering frames;
 - taxi/hatchback/van/truck rear views, with at least three traffic visuals available;
-- far skyline;
-- mid skyline.
+- city far skyline;
+- city mid skyline/building strip.
 
 Approximately **10–11 images** are sufficient to move from geometric placeholder gameplay to an art-readable prototype.
 
 ### Batch B — environment identity
 
-Then produce:
+Then produce the shared vocabulary needed to make all five zones readable:
 
 - streetlight;
 - guardrail;
-- convenience-store sign;
-- neon arrow;
+- utility pole;
+- tree/tree-cluster;
+- rock/cliff cluster;
+- chevron/caution board;
+- convenience/commercial sign;
 - overhead highway sign;
+- billboard;
 - cone;
 - construction barricade;
-- tunnel/sign element;
-- billboard;
-- utility box/roadside crate;
-- near/background building strips as needed.
+- utility box/crate;
+- tunnel portal/sign element;
+- tunnel light/reflector;
+- route/delivery marker;
+- `bg_ridge_far`;
+- `bg_vegetation_mid`;
+- only then add an optional near natural strip or small rural silhouette if zone readability still needs it.
 
-At roughly **20–25 total images**, the game should already communicate the intended Night Courier identity.
+The environment should become readable through composition before expanding the inventory.
 
 ### Batch C — polish
 
@@ -417,7 +454,7 @@ Only after gameplay and composition are stable:
 - optional brake frames;
 - optional extra traffic color/visual variants;
 - result-screen decoration;
-- additional parallax strip if a route section still lacks distinction.
+- optional final parallax/zone accent only if a representative zone still lacks distinction.
 
 ## 18. Asset budget summary
 
@@ -425,15 +462,15 @@ Only after gameplay and composition are stable:
 |---|---:|
 | player vehicle | 5–8 frames |
 | traffic | 4–6 images |
-| roadside/environment props | 12–15 images |
-| backgrounds/parallax | 4–6 images |
+| roadside/environment props | 15–18 images shared across zones |
+| backgrounds/parallax | 5–7 images shared across zones |
 | VFX | 4–6 images |
 | UI/icons | 5–8 images |
 | font | 1 family |
 | music | 1 track |
 | SFX | ~8 clips |
 
-The final unique-image budget should normally remain around **34–49 images**, with approximately **45–70 frames/images** after variants are counted.
+The final unique-image budget should normally remain around **38–53 images**, with approximately **49–74 frames/images** after variants are counted.
 
 If the initial release exceeds this substantially, review whether content has expanded beyond the intended minigame scope before producing more assets.
 
@@ -446,9 +483,10 @@ Do not commission or generate these unless a later approved feature requires the
 - garage/customization assets;
 - vehicle damage-state progression;
 - boost/nitro VFX;
-- multiple environment/biome packs;
+- independent full asset packs for each environment zone;
+- additional biome families beyond the five approved route zones;
 - weather-specific asset packs;
-- individual building simulation set;
+- individual building/tree/rock simulation sets;
 - animated pedestrians;
 - cargo-type-specific package sets;
 - multiple music-album/playlist content;
@@ -460,6 +498,7 @@ An asset is production-ready only when it:
 
 - follows the approved Night Courier palette/value hierarchy;
 - remains readable at representative gameplay speed and projected scale;
+- supports at least one approved route-zone composition or core gameplay need;
 - uses nearest-neighbor-friendly pixel construction without unintended smoothing;
 - has consistent apparent pixel density relative to its category;
 - has correct transparent bounds/pivot expectations;
