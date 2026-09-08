@@ -4,7 +4,7 @@
 
 M5 converts the mechanically complete M1–M4 build from procedural/placeholding presentation into the production-readable Night Courier minigame.
 
-M5 must not redesign driving, traffic, route, scoring or the five-zone environment model. Presentation code consumes existing simulation state.
+M5 must not redesign driving, traffic, route, scoring or the five-zone environment model. Presentation code consumes the existing simulation state.
 
 Authoritative inputs:
 
@@ -16,6 +16,8 @@ Authoritative inputs:
 
 ## 2. M5 execution order
 
+The backlog numbers describe scope, not implementation dependency order. Execute M5 in five slices:
+
 ```text
 M5A production foundation
     -> M5B gameplay-readable Batch A
@@ -24,53 +26,76 @@ M5A production foundation
     -> M5E audio / pause / final production pass
 ```
 
-Do not commission the full inventory before Batch A is integrated and validated at gameplay speed.
+Do not commission the full asset inventory before Batch A has been integrated and validated at gameplay speed.
 
 ## 3. M5A — production foundation
 
-**Status:** complete.
+**Status:** complete. Runtime/config/build and browser-shell checks passed, including an injected missing-required-asset test proving Boot remains active and Game does not start on load failure. M5.1/M5.2 production touch/HUD validation and all production-art acceptance remain later M5 scope.
 
-M5A established:
+M5A establishes infrastructure and contracts without adding fake production assets.
 
-- canonical `Night Courier 20` runtime tokens;
-- Phaser pixel-art texture filtering;
-- `960 x 540` logical resolution with `FIT` scaling;
-- approved runtime asset directory tree;
-- `BootScene` preload/error boundary;
-- landscape-only browser shell and portrait rotate notice;
-- touch input contract;
-- five-state `visualSteer` presentation contract.
+### Runtime foundation
 
-No generalized asset manager, UI framework or atlas pipeline was introduced.
+- expose the complete `Night Courier 20` palette as canonical named TypeScript tokens;
+- enable Phaser pixel-art texture filtering through game configuration;
+- keep logical simulation/render coordinates at `960 x 540`;
+- keep `Phaser.Scale.FIT` and centered scaling;
+- create the approved `WebGame/public/assets/` runtime directory tree;
+- add `BootScene.preload()` progress/error infrastructure;
+- do not allow a required asset load failure to enter gameplay;
+- do not add a generalized asset manager, asset database or custom atlas pipeline.
+
+Existing M4 procedural placeholder code may retain local semantic color aliases temporarily, but new production presentation must resolve from the canonical token map rather than defining a competing palette.
+
+### Runtime asset tree
+
+```text
+WebGame/public/assets/
+├── player/
+├── traffic/
+├── props/
+├── backgrounds/
+├── fx/
+├── ui/
+├── fonts/
+└── audio/
+```
+
+Source art does not belong in these directories.
 
 ## 4. Landscape and viewport contract
 
-Night Courier gameplay remains **landscape-only**.
+Night Courier gameplay is **landscape-only** for the initial release.
 
 Runtime rules:
 
-- logical canvas: `960 x 540`;
-- preserve aspect ratio with `FIT`;
-- letterbox/pillarbox is acceptable;
-- portrait fallback asks the player to rotate;
-- touch controls remain inside logical safe margins;
-- Unity host may later request landscape orientation where platform policy permits.
+- authoritative logical canvas: `960 x 540`;
+- preserve aspect ratio with `FIT` rather than stretching gameplay coordinates;
+- letterbox/pillarbox space is acceptable;
+- browser fallback displays a rotate-device notice in portrait instead of redesigning gameplay for portrait;
+- Unity host should eventually request/maintain landscape orientation where platform policy allows;
+- touch controls stay inside the logical gameplay safe margin rather than depending on physical screen-edge coordinates;
+- `viewport-fit=cover` remains enabled so browser/WebView safe-area behavior is available when needed.
 
-M5A structurally validated `960x540`, `844x390`, `1024x768` and portrait `390x844`. M5.2 remains open until touch/HUD clipping is validated.
+M5A structurally validated `960x540`, phone-wide `844x390`, tablet-like `1024x768`, and portrait `390x844`. M5.2 remains incomplete until production touch/HUD controls are also checked for clipping and usability.
 
 ## 5. Touch-control contract
 
-Touch remains another producer of the existing normalized input:
+Touch remains another producer of the existing normalized `InputState`:
 
 ```ts
 interface InputState {
-  steer: number;
-  throttle: number;
-  brake: number;
+  steer: number;    // -1..1
+  throttle: number; // 0..1
+  brake: number;    // 0..1
 }
 ```
 
-Initial layout:
+`Player` must not know whether values came from keyboard, touch or gamepad.
+
+### Initial logical layout
+
+Use four large logical control regions with at least a 24 px logical margin from the 960x540 canvas boundary:
 
 ```text
 bottom-left                     bottom-right
@@ -78,23 +103,31 @@ bottom-left                     bottom-right
 [ LEFT ] [ RIGHT ]              [ BRAKE ] [ GAS ]
 ```
 
-Requirements:
+Exact dimensions are tuning, but controls must satisfy:
 
-- steering + throttle simultaneously;
-- steering + brake simultaneously;
-- independent multi-touch ownership;
-- releasing one pointer does not release another control;
-- route choice still derives from normalized steering;
-- visible pressed state;
-- no new mobile scene/input subsystem.
+- steering and throttle can be held simultaneously;
+- steering and brake can be held simultaneously;
+- multi-touch pointer ownership is independent per control;
+- releasing one pointer must not release another held control;
+- route choice continues to derive from normalized steering and needs no separate touch-only navigation mode;
+- controls must not overlap the core player/traffic readability area more than necessary;
+- visible pressed state is required once the touch UI is implemented.
+
+Touch implementation belongs in `Input.ts` plus minimal scene-owned visual controls. Do not create a touch-input subsystem or mobile scene.
 
 ## 6. Player visual-steering contract
 
-The five player textures are presentation states, not physics modes.
+The five player sprites are presentation state, not five physics modes.
 
-`GameScene` owns a smoothed `visualSteer` value separate from raw input so binary steering traverses moderate poses rather than snapping directly to hard poses.
+The simulation continues to consume raw normalized steering. `GameScene` maintains a separate presentation value named `visualSteer` that approaches the current steering input over a short arcade response window.
 
-| `visualSteer` | Texture |
+This separation is required so binary keyboard/touch input can visibly pass through the moderate steering frames instead of snapping directly from `Center` to `Hard Left/Hard Right`.
+
+### Five-state mapping
+
+Initial pose bands:
+
+| `visualSteer` | Pose |
 |---|---|
 | `<= -0.68` | `player_rear_hard_left` |
 | `-0.68 .. -0.18` | `player_rear_left` |
@@ -102,49 +135,44 @@ The five player textures are presentation states, not physics modes.
 | `+0.18 .. +0.68` | `player_rear_right` |
 | `>= +0.68` | `player_rear_hard_right` |
 
-Requirements:
+The exact response rate is tuning. Requirements are:
 
-- neutral → moderate → hard when steering is held;
-- hard → moderate → neutral when released;
-- no effect on `Player.roadX`, speed, cargo or collision math;
-- no runtime bitmap mirroring;
-- add hysteresis only if threshold flicker is observed;
-- current release remains FLAT-only.
+- pressing from neutral reads `Center -> Left/Right -> Hard Left/Hard Right`;
+- releasing hard steering reads back through the moderate pose before `Center`;
+- presentation interpolation must not alter `Player.roadX`, speed or collision math;
+- use a small state hysteresis if threshold flicker is visible;
+- do not runtime-flip the authored right-side player sprites because vehicle identity contains asymmetric details;
+- current release remains the single FLAT pitch family.
 
-Do not add an Animator/state-machine subsystem for five textures.
+Do not introduce a player animator/state-machine framework solely for five steering textures.
 
-## 7. Player resolution migration — 256 x 256
+### 256 x 256 resolution contract
 
-The old 64 x 64 player contract is retired.
+The previous 64 x 64 player source contract is retired.
 
-Current authoritative production contract:
+The current player presentation contract is:
 
 ```text
-source canvas: 256 x 256 px
-runtime display box: 256 x 256 initially
-contact anchor: (128, 232)
+source canvas = 256 x 256 px
+initial runtime display box = 256 x 256
+canonical contact anchor = (128, 232)
 ```
 
-This is a presentation-resolution change only.
+The resolution change does not alter yaw angles, five-state count, FLAT-only scope, physics or road-space collision.
 
-It does not change:
+The five high-resolution player PNGs currently committed are staging references rather than accepted production exports. Their observed dimensions are `1254 x 1254` for Center/Right and `1256 x 1256` for Left/Hard Left/Hard Right. Runtime may scale them while the integration path is validated, but production acceptance requires explicit exact 256 x 256 exports with stable registration.
 
-- five-state yaw count;
-- yaw angles;
-- FLAT-only scope;
-- Night Courier 20 palette/color cap;
-- vehicle physics;
-- road-space collision envelopes.
+Do not silently resample the staging PNGs and declare them final without visual review.
 
-The five high-resolution PNGs currently committed are staging references. They are approximately 1254/1256 px square and therefore do **not** yet satisfy Batch A production-size acceptance. Runtime may load/scale them while the integration path is tested; final acceptance requires explicit 256 x 256 exports with stable registration.
+## 7. Batch A — gameplay-readable art
 
-Do not silently resample those staging files and declare them final without visual review.
+Produce and integrate only after M5A contracts are stable.
 
-## 8. M5B — gameplay-readable Batch A
+Required initial art:
 
 ### Player
 
-Exactly five required **256 x 256** transparent FLAT frames:
+Exactly five required **`256 x 256`** transparent FLAT frames:
 
 ```text
 player_rear_hard_left.png
@@ -154,9 +182,11 @@ player_rear_right.png
 player_rear_hard_right.png
 ```
 
-Runtime integration now uses these texture keys and the smoothed visual-steering mapping. The old procedural player placeholder is removed from the player presentation path.
+They follow `Player-Sprite-Angle-Specification.md` exactly.
 
-The production-size/art acceptance remains pending until the five committed staging PNGs are replaced/re-exported at exact 256 x 256 and pass the angle/registration checklist.
+Runtime integration now preloads these five keys, renders the player with a Phaser image rather than the procedural player placeholder, uses the `(128,232)` source contact anchor and selects textures through smoothed `visualSteer`.
+
+This implementation progress does **not** mark the player art accepted: the currently committed staging PNGs must still be replaced/re-exported at exact 256 x 256 and pass the full visual/registration checklist.
 
 ### Traffic
 
@@ -169,7 +199,7 @@ traffic_van_rear.png        -> van
 traffic_truck_rear.png      -> truck
 ```
 
-Visual variety must not create new behavior classes.
+Visual variety must not create new traffic behavior classes.
 
 ### First backgrounds
 
@@ -178,37 +208,65 @@ bg_city_far.png
 bg_city_mid.png
 ```
 
-Batch A remains approximately 10–11 images.
+Batch A should remain approximately 10–11 images.
 
 ### Batch A gate
 
 Before Batch B:
 
-- all five player files are exact 256 x 256 production exports;
+- all five player source PNGs are exact 256 x 256 exports;
 - player pose transitions read as one vehicle at gameplay speed;
-- tire-contact anchor remains stable across all states;
-- player remains readable over city/forest/mountain-pass/tunnel compositions;
-- traffic silhouettes remain readable at collision/near-miss distances;
-- nearest-neighbor rendering has no obvious smoothing/shimmer;
+- player remains readable against city/forest/mountain-pass/tunnel placeholder compositions;
+- player contact anchor remains stable across all five states;
+- traffic silhouettes remain readable at near-miss/collision distances;
+- pivots and transparent bounds are stable;
+- nearest-neighbor rendering shows no obvious smoothing;
 - no pitch-family expansion is justified by default.
 
-## 9. M5C — environment Batch B
+## 8. Batch B — environment identity
 
 Only after Batch A passes.
 
-Produce approximately 15–18 shared props total, including streetlight, guardrail, utility pole, tree cluster, rock/cliff cluster, chevron, core signs/gantry, tunnel portal/light and destination marker.
+Produce approximately 15–18 shared props total, not per zone. Priority follows the authoritative inventory:
 
-Shared natural backgrounds follow:
+- streetlight;
+- guardrail;
+- utility pole;
+- tree cluster;
+- rock/cliff cluster;
+- chevron;
+- core signs/gantry;
+- tunnel portal/light;
+- destination marker;
+- remaining approved shared utility/commercial props.
+
+Add shared natural backgrounds after city layers:
 
 - `bg_ridge_far`;
 - `bg_vegetation_mid`;
 - optional near natural strip only if readability evidence requires it.
 
-M4 deterministic roadside placement remains authoritative. Sprite-backed props must reuse road projection, render far-to-near, respect crest clipping, use stable pivots and reuse pooled Phaser images. Do not add `EnvironmentRenderer`, `PropManager`, ECS or zone scenes preemptively.
+### Projected-sprite integration rule
 
-## 10. HUD and feedback
+M4's deterministic roadside placement remains authoritative. M5 replaces procedural placeholder shapes with sprite-backed presentation without changing route placement semantics.
 
-Production HUD priority:
+Projected roadside sprites must:
+
+- reuse stable route/segment/zone placement;
+- use the existing road projection;
+- render far-to-near;
+- respect hill/crest clipping;
+- use predictable bottom-center or documented pivots;
+- reuse pooled Phaser image objects rather than creating/destroying sprites every frame;
+- stay inside existing `Road.ts` / `GameScene` responsibility unless measured complexity proves extraction necessary.
+
+Do not add `EnvironmentRenderer`, `PropManager`, ECS or zone scenes preemptively.
+
+## 9. HUD and feedback
+
+The M4 debug HUD is not the production HUD.
+
+Production priority:
 
 ```text
 TIME                 SCORE
@@ -218,60 +276,83 @@ TIME                 SCORE
 CARGO                COMBO
 ```
 
-`ZONE`, `BRANCH` and route percentage remain debug-only information after HUD polish.
+`ZONE`, `BRANCH` and route percentage remain debug information and should not occupy normal gameplay HUD after presentation polish.
 
-Collision feedback should combine existing mechanics with concise presentation:
+Prefer procedural text/bars and only the approved small icon set.
+
+Collision feedback should compose existing mechanics with small presentation effects:
 
 ```text
 speed loss + cargo loss + shake + flash + sparks + impact SFX
 ```
 
-Near miss should use concise score/combo pulse + audio and only justified small VFX.
+Near miss should use a concise score/combo pulse plus audio and only justified small VFX.
 
-## 11. Font and audio
+## 10. Font and audio dependencies
 
-Use one local readable redistribution-compatible pixel/bitmap font family.
+### Font
 
-Initial audio target:
+One local readable pixel/bitmap family is sufficient. Production acceptance requires a redistribution-compatible license and no CDN dependency.
+
+### Audio
+
+Initial target remains:
 
 - one gameplay music loop;
 - approximately eight SFX.
 
-Browser/mobile audio unlock must be validated through a user gesture. A short start/countdown flow is preferred if it solves both onboarding and audio unlock without creating another scene.
+Browser/mobile audio may require user interaction before playback. M5 must validate a user-gesture audio-unlock/start flow before treating audio as complete.
 
-## 12. Pause/resume
+A short start/countdown flow is preferred if it solves both control onboarding and audio unlock without creating another scene.
 
-Browser-side pause/resume precedes M6 host forwarding.
+## 11. Pause/resume
 
-Pause:
+Browser-side pause/resume should be implemented before M6 host forwarding.
 
-- stop simulation;
-- retain in-memory state;
+Pause must:
+
+- stop simulation progression;
+- retain in-memory run state;
 - pause relevant audio.
 
-Resume:
+Resume must:
 
 - discard wall-clock gap;
-- reset fixed-step accumulator;
-- avoid timer/player/traffic jumps.
+- reset the fixed-step accumulator before continuing;
+- avoid traffic/player teleport or timer loss.
 
-No pause manager is required.
+Do not create a pause manager solely for this behavior.
 
-## 13. M5 explicit non-goals
+## 12. M5 explicit non-goals
 
-Do not add without concrete acceptance evidence:
+Do not add during M5 unless acceptance evidence proves a concrete need:
 
 - new gameplay mechanics;
-- new routes/zones;
-- uphill/downhill player families;
+- new routes or environment zones;
+- player uphill/downhill pitch families;
 - more than five player yaw states;
 - new traffic AI types;
 - zone-specific vehicle physics;
 - full 3D tunnel;
 - per-zone asset packs;
 - generalized UI framework;
-- custom atlas pipeline;
+- custom atlas/content pipeline;
 - shader palette system;
 - audio middleware;
 - multiple music tracks;
 - portrait gameplay layout.
+
+## 13. M5A exit criteria
+
+M5A is complete when:
+
+- `Night Courier 20` exists as the canonical named runtime token map;
+- Phaser pixel-art filtering is enabled;
+- the approved runtime asset directories exist;
+- `BootScene` owns preload progress/failure handling and cannot continue after required-load failure;
+- browser shell uses the canonical deep-night background and has a landscape-only portrait notice;
+- touch layout and visual steering contracts are documented before their implementation;
+- no fake production image/audio/font has been added merely to exercise the loader;
+- `npm run typecheck`, production build, static-output smoke and representative shell checks pass.
+
+M5.1, final M5.2 touch/HUD validation and the unaccepted production-art portions of M5.6+ remain incomplete until their actual implementation/validation gates are satisfied.
