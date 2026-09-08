@@ -465,3 +465,233 @@ Do not expand immediately to:
 - rollover/spin/crash rotation sprite sequences.
 
 If five states visibly snap during representative gameplay, first verify angle progression and registration against this spec. Only then consider seven states as a measured polish expansion.
+
+## 23. Master consistency checklist
+
+Use this checklist after every generated or manually edited player sprite. It is the production review gate for both an individual frame and the complete five-frame steering family.
+
+### 23.1 File and format
+
+- [ ] File is PNG.
+- [ ] Canvas is exactly `64 x 64 px`.
+- [ ] Background is true transparency, not a baked checkerboard or solid-color substitute.
+- [ ] Vehicle fits completely inside the canvas.
+- [ ] No sprite pixel touches or is cropped by a canvas edge.
+- [ ] Transparent padding is controlled and comparable with neighboring states.
+- [ ] No road, floor, environment, skyline, text, UI, border or decorative background is present.
+- [ ] No cast ground shadow or detached external glow is present.
+
+### 23.2 Same-car identity
+
+- [ ] Body model is recognizably identical to `Center`.
+- [ ] Roofline is unchanged except for valid perspective compression.
+- [ ] Rear hatch and rear-window shapes belong to the same underlying geometry.
+- [ ] Spoiler shape and placement are consistent.
+- [ ] Bumper design and thickness are consistent.
+- [ ] Taillight count, shape family and placement remain consistent.
+- [ ] Wheel design and tire diameter remain consistent.
+- [ ] Mirror design remains consistent where visible.
+- [ ] License-plate shape, color and physical location remain consistent.
+- [ ] Exhaust remains on its correct physical side and uses the same shape.
+- [ ] Courier stripe follows the same underlying livery geometry.
+- [ ] Cat-logo identity, scale logic and physical placement remain consistent.
+- [ ] No state appears to be a different hatchback/coupe variant or a separately redesigned concept render.
+
+### 23.3 Camera and viewpoint
+
+- [ ] Camera remains behind the vehicle.
+- [ ] Camera remains slightly elevated and gently downward-looking.
+- [ ] Camera height appears unchanged from `Center`.
+- [ ] Camera pitch appears unchanged from `Center`.
+- [ ] Camera distance/apparent perspective strength appears unchanged.
+- [ ] Rear face remains the dominant visual plane in every state.
+- [ ] No steering state becomes a true side view.
+- [ ] No steering state becomes a dramatic showcase rear-three-quarter render.
+- [ ] The angle change reads as vehicle yaw under a fixed camera, not camera orbit around the vehicle.
+
+### 23.4 State-specific angle progression
+
+#### Center
+
+- [ ] Intentional yaw is effectively `0°`.
+- [ ] Rear plane is at its widest baseline.
+- [ ] Intentional side exposure is approximately `0-2 px` per side.
+- [ ] Front wheels are not meaningfully visible.
+- [ ] Rear-tire footprints are visually balanced, allowing only real vehicle asymmetry.
+
+#### Left
+
+- [ ] Yaw is approximately `10-12°` left from Center.
+- [ ] Right-hand side is the increasingly visible side.
+- [ ] Rear-plane width is approximately `0.88-0.90 x Center`.
+- [ ] Visible right-side body is approximately `10-12 px` at the beltline/door area.
+- [ ] Right-front-wheel visibility is approximately `4-6 px`.
+- [ ] Right-side glass visibility is approximately `8-10 px`.
+- [ ] State remains much closer to Center than to a showcase side view.
+
+#### Hard Left
+
+- [ ] Yaw is approximately `20-22°` left from Center.
+- [ ] Right-hand side exposure increases one controlled step beyond Left.
+- [ ] Rear-plane width is approximately `0.74-0.78 x Center`.
+- [ ] Visible right-side body is approximately `15-18 px` at the beltline/door area.
+- [ ] Right-front-wheel visibility is approximately `7-9 px`.
+- [ ] Right-side glass visibility is approximately `13-16 px`.
+- [ ] Rear still dominates; the state has not become a side/back showcase image.
+
+#### Right
+
+- [ ] Yaw is approximately `10-12°` right from Center.
+- [ ] Left-hand side is the increasingly visible side.
+- [ ] Rear-plane width is approximately `0.88-0.90 x Center`.
+- [ ] Visible left-side body is approximately `10-12 px` at the beltline/door area.
+- [ ] Left-front-wheel visibility is approximately `4-6 px`.
+- [ ] Left-side glass visibility is approximately `8-10 px`.
+- [ ] State remains much closer to Center than to a showcase side view.
+
+#### Hard Right
+
+- [ ] Yaw is approximately `20-22°` right from Center.
+- [ ] Left-hand side exposure increases one controlled step beyond Right.
+- [ ] Rear-plane width is approximately `0.74-0.78 x Center`.
+- [ ] Visible left-side body is approximately `15-18 px` at the beltline/door area.
+- [ ] Left-front-wheel visibility is approximately `7-9 px`.
+- [ ] Left-side glass visibility is approximately `13-16 px`.
+- [ ] Rear still dominates; the state has not become a side/back showcase image.
+
+The pixel numbers above are production guardrails with the general `+/-1 px` tolerance defined earlier. Do not distort a visually correct frame merely to satisfy a single metric in isolation.
+
+### 23.5 Registration and frame stability
+
+- [ ] Canvas registration is compatible with anchor target approximately `(32, 58)`.
+- [ ] Tire-contact line remains approximately `Y = 58`.
+- [ ] Roof highest pixel remains approximately in the `Y = 11-12` band.
+- [ ] Total sprite height remains approximately `46-48 px`.
+- [ ] Adjacent-state vertical drift is ideally `0 px` and never exceeds `1 px` without documented justification.
+- [ ] Adjacent-state horizontal registration drift is no more than about `1 px` unless perspective clearly requires it.
+- [ ] Apparent vehicle scale does not grow/shrink while steering.
+- [ ] Center of mass remains visually stable.
+- [ ] Alternating `Center <-> Left`, `Left <-> Hard Left`, `Center <-> Right` and `Right <-> Hard Right` does not create visible popping or bouncing.
+
+### 23.6 Wheel-visibility continuity
+
+- [ ] Center shows rear wheels as the primary wheel cues and hides front wheels.
+- [ ] Left reveals the right front wheel slightly.
+- [ ] Hard Left reveals the right front wheel more clearly than Left.
+- [ ] Right reveals the left front wheel slightly.
+- [ ] Hard Right reveals the left front wheel more clearly than Right.
+- [ ] Near-side front wheel remains less dominant than the corresponding near-side rear wheel.
+- [ ] Far-side front wheel remains hidden or only incidentally visible.
+- [ ] Wheelbase does not visibly change between states.
+- [ ] Wheel/tire design does not drift between states.
+
+### 23.7 Asymmetry and non-mirroring
+
+- [ ] `Right` is not merely a bitmap-flipped `Left`.
+- [ ] `Hard Right` is not merely a bitmap-flipped `Hard Left`.
+- [ ] Exhaust remains on the same physical side across all states.
+- [ ] Non-symmetric livery breaks remain physically correct.
+- [ ] Logo placement follows the real vehicle side rather than artificial bitmap symmetry.
+- [ ] Any real taillight/body asymmetry remains physically correct.
+- [ ] Geometric angle symmetry does not override actual vehicle identity.
+
+### 23.8 Pixel-art construction
+
+- [ ] Edges are crisp and nearest-neighbor friendly.
+- [ ] Pixel clusters are intentional rather than noisy.
+- [ ] Diagonals use deliberate stepped construction.
+- [ ] Shading uses controlled bands/clusters rather than soft gradients.
+- [ ] Outline thickness is consistent with Center.
+- [ ] No bilinear softness, blur or painterly edge treatment is present.
+- [ ] No unnecessary micro-detail appears in one state but not its neighbors.
+- [ ] No angle-specific dithering/noise is introduced unless already part of the approved family style.
+- [ ] Sprite remains readable at native gameplay scale, not only when zoomed in.
+
+### 23.9 Palette and lighting
+
+- [ ] Frame follows the approved Night Courier color system.
+- [ ] Visible color count excluding transparency is **24 or fewer**.
+- [ ] Body remains in the approved light neutral / cool-gray family.
+- [ ] Glass/tires/outlines remain in the approved dark cool family.
+- [ ] Warm red/orange/yellow accents remain restrained and consistent.
+- [ ] No angle introduces an unrelated hue family.
+- [ ] No extra anti-alias/intermediate colors are generated simply because of perspective.
+- [ ] Highlight direction is consistent across the family.
+- [ ] Shadow direction and value hierarchy are consistent across the family.
+- [ ] Equivalent non-braking states use consistent taillight intensity.
+- [ ] No state contains unique environmental reflection or external glow.
+
+### 23.10 Gameplay readability
+
+- [ ] Hero vehicle remains clearly distinguishable against representative dark-road/night-city backgrounds.
+- [ ] Rear silhouette reads immediately at gameplay speed.
+- [ ] Yellow plate remains a stable identifying cue where visible.
+- [ ] Taillights remain readable without becoming oversized noise.
+- [ ] Spoiler/roof/hatch silhouette remains recognizable.
+- [ ] Livery remains readable without overpowering body shape.
+- [ ] Each steering state is distinguishable from its neighbor without requiring a dramatic angle jump.
+- [ ] The five-state family reads as animation frames rather than five separate illustrations.
+
+### 23.11 Full-family sequence review
+
+Review the five frames in this order:
+
+```text
+Hard Left -> Left -> Center -> Right -> Hard Right
+```
+
+Then review both short sequences repeatedly:
+
+```text
+Center -> Left -> Hard Left -> Left -> Center
+Center -> Right -> Hard Right -> Right -> Center
+```
+
+The complete set passes only when:
+
+- [ ] angular progression is monotonic and visually even;
+- [ ] rear-plane contraction is progressive rather than erratic;
+- [ ] side exposure increases/decreases progressively;
+- [ ] wheel visibility changes progressively;
+- [ ] roof/contact registration remains stable;
+- [ ] livery/logo visibility changes only through perspective;
+- [ ] lighting and palette remain consistent;
+- [ ] no frame is visually more detailed, sharper, softer, brighter or larger than its neighbors without a justified perspective reason;
+- [ ] the sequence reads as one vehicle rotating continuously under one fixed camera.
+
+## 24. Review outcome classification
+
+Use these outcomes when reviewing generated sprites.
+
+### PASS
+
+Accept when all mandatory identity, camera, registration, palette/format and progression checks pass, and any metric deviation is within normal pixel tolerance without harming animation continuity.
+
+### SOFT FAIL — edit/re-touch preferred
+
+Use when the underlying frame is correct but needs limited correction, for example:
+
+- yaw slightly too weak/strong;
+- side exposure off by roughly `1-2 px`;
+- registration off by `1 px`;
+- one wheel cue needs simplification;
+- a few pixel clusters or palette entries need cleanup;
+- color count exceeds the cap only because of removable accidental shades.
+
+Prefer targeted pixel editing over full regeneration when identity and geometry are already stable.
+
+### HARD FAIL — regenerate or reconstruct
+
+Reject when any of the following occurs:
+
+- vehicle identity materially changes;
+- camera angle/pitch/distance changes;
+- frame becomes a side/showcase view rather than gameplay steering state;
+- apparent vehicle scale or vertical registration changes strongly;
+- wheelbase/body proportions materially change;
+- exhaust/livery/asymmetric details appear on the wrong physical side;
+- bitmap mirroring produces false vehicle identity;
+- background, ground shadow or detached glow is baked into the asset;
+- sprite is soft/anti-aliased/painterly rather than production pixel art;
+- palette/style materially diverges from neighboring states;
+- adjacent-frame swapping reads as two different illustrations rather than one rotating car.
