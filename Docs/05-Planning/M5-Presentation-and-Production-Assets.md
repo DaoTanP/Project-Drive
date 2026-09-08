@@ -30,11 +30,13 @@ Do not commission the full asset inventory before Batch A has been integrated an
 
 ## 3. M5A — production foundation
 
+**Status:** complete. Runtime/config/build and browser-shell checks passed, including an injected missing-required-asset test proving Boot remains active and Game does not start on load failure. M5.1/M5.2 production touch/HUD validation and all production art remain later M5 scope.
+
 M5A establishes infrastructure and contracts without adding fake production assets.
 
 ### Runtime foundation
 
-- expose the complete `Night Courier 20` palette as named TypeScript tokens;
+- expose the complete `Night Courier 20` palette as canonical named TypeScript tokens;
 - enable Phaser pixel-art texture filtering through game configuration;
 - keep logical simulation/render coordinates at `960 x 540`;
 - keep `Phaser.Scale.FIT` and centered scaling;
@@ -42,6 +44,8 @@ M5A establishes infrastructure and contracts without adding fake production asse
 - add `BootScene.preload()` progress/error infrastructure;
 - do not allow a required asset load failure to enter gameplay;
 - do not add a generalized asset manager, asset database or custom atlas pipeline.
+
+Existing M4 procedural placeholder code may retain local semantic color aliases temporarily, but new production presentation must resolve from the canonical token map rather than defining a competing palette.
 
 ### Runtime asset tree
 
@@ -73,14 +77,7 @@ Runtime rules:
 - touch controls stay inside the logical gameplay safe margin rather than depending on physical screen-edge coordinates;
 - `viewport-fit=cover` remains enabled so browser/WebView safe-area behavior is available when needed.
 
-M5.2 is not complete merely because these rules are implemented. It requires representative viewport validation.
-
-Representative validation sizes should include at least:
-
-- `960 x 540` / 16:9;
-- a phone-like 19.5:9 or 20:9 landscape viewport;
-- a tablet-like 4:3 viewport;
-- portrait orientation, which must display the rotate notice rather than a distorted game.
+M5A structurally validated `960x540`, phone-wide `844x390`, tablet-like `1024x768`, and portrait `390x844`. M5.2 remains incomplete until production touch/HUD controls are also checked for clipping and usability.
 
 ## 5. Touch-control contract
 
@@ -325,13 +322,13 @@ Do not add during M5 unless acceptance evidence proves a concrete need:
 
 M5A is complete when:
 
-- `Night Courier 20` exists as a single named runtime token map;
+- `Night Courier 20` exists as the canonical named runtime token map;
 - Phaser pixel-art filtering is enabled;
 - the approved runtime asset directories exist;
 - `BootScene` owns preload progress/failure handling and cannot continue after required-load failure;
 - browser shell uses the canonical deep-night background and has a landscape-only portrait notice;
 - touch layout and visual steering contracts are documented before their implementation;
 - no fake production image/audio/font has been added merely to exercise the loader;
-- `npm run typecheck`, production build and static-output smoke pass.
+- `npm run typecheck`, production build, static-output smoke and representative shell checks pass.
 
-M5.1, M5.2 and M5.6+ remain incomplete until their actual implementation/validation gates are satisfied.
+M5.1, final M5.2 touch/HUD validation and M5.6+ remain incomplete until their actual implementation/validation gates are satisfied.
