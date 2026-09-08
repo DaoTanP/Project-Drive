@@ -1,0 +1,82 @@
+name: M5A Loader Failure Smoke
+
+on:
+  push:
+    branches:
+      - feat/m5a-production-foundation
+    paths:
+      - '.github/workflows/m5a-loader-failure-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  loader-failure:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.12.0'
+          package-manager-cache: false
+      - name: Inject test-only missing required asset and game handle
+        working-directory: WebGame
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          boot = Path('src/scenes/BootScene.ts')
+          text = boot.read_text()
+          needle = '    // M5A establishes the loader/error boundary only. Batch A adds the first\n'
+          text = text.replace(needle, "    this.load.image('__m5a_missing__', 'assets/__m5a_missing__.png');\n\n" + needle)
+          boot.write_text(text)
+
+          main = Path('src/main.ts')
+          text = main.read_text()
+          text = text.replace('new Phaser.Game(gameConfig);', "(window as typeof window & { __m5aGame?: Phaser.Game }).__m5aGame = new Phaser.Game(gameConfig);")
+          main.write_text(text)
+          PY
+      - name: Build test workspace
+        working-directory: WebGame
+        run: |
+          npm ci
+          npm run typecheck
+          npm run build
+          npm install --no-save --package-lock=false puppeteer-core@24.16.0
+      - name: Verify required-load failure blocks gameplay
+        working-directory: WebGame
+        run: |
+          python3 -m http.server 4173 --directory dist >/tmp/m5a-loader-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          for attempt in {1..20}; do
+            curl --fail --silent http://127.0.0.1:4173/ >/dev/null && break
+            sleep 1
+          done
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import puppeteer from 'puppeteer-core';
+
+          const browser = await puppeteer.launch({ executablePath: '/usr/bin/google-chrome', headless: true, args: ['--no-sandbox', '--disable-gpu'] });
+          const page = await browser.newPage();
+          await page.setViewport({ width: 960, height: 540, deviceScaleFactor: 1 });
+          await page.goto('http://127.0.0.1:4173/', { waitUntil: 'domcontentloaded' });
+          await page.waitForSelector('canvas');
+          await new Promise((resolve) => setTimeout(resolve, 800));
+          const state = await page.evaluate(() => {
+            const game = window.__m5aGame;
+            if (!game) throw new Error('missing test game handle');
+            const boot = game.scene.getScene('Boot');
+            return {
+              bootActive: game.scene.isActive('Boot'),
+              gameActive: game.scene.isActive('Game'),
+              status: boot && 'statusText' in boot ? boot.statusText?.text ?? '' : '',
+            };
+          });
+          assert.equal(state.bootActive, true);
+          assert.equal(state.gameActive, false);
+          assert.match(state.status, /ASSET LOAD ERROR/);
+          assert.match(state.status, /__m5a_missing__/);
+          await browser.close();
+          NODE
