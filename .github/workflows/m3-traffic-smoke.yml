@@ -1,0 +1,173 @@
+name: M3 Traffic Smoke
+
+on:
+  push:
+    branches:
+      - feat/m3-traffic-scoring
+    paths:
+      - 'WebGame/**'
+      - '.github/workflows/m3-traffic-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  traffic:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.12.0'
+          package-manager-cache: false
+
+      - name: Build and install temporary test drivers
+        working-directory: WebGame
+        run: |
+          npm ci
+          npm run build
+          npm install --no-save --package-lock=false tsx@4.20.5 puppeteer-core@24.16.0
+
+      - name: Verify traffic interaction and scoring rules
+        working-directory: WebGame
+        run: |
+          cat > .m3-rules-smoke.ts <<'TS'
+          import assert from 'node:assert/strict';
+          import { Player } from './src/game/Player';
+          import { Scoring } from './src/game/Scoring';
+          import { Traffic } from './src/game/Traffic';
+
+          function runUntilEvent(traffic: Traffic, roadX: number, event: 'collision' | 'nearMiss') {
+            let previous = 0;
+            let current = 0;
+            let totalCollisions = 0;
+            let totalNearMisses = 0;
+            let cargoDamage = 0;
+            let speedRetention = 1;
+
+            for (let step = 0; step < 35; step += 1) {
+              previous = current;
+              current += 200;
+              const result = traffic.update(1 / 60, previous, current, roadX);
+              totalCollisions += result.collisions;
+              totalNearMisses += result.nearMisses;
+              cargoDamage += result.cargoDamage;
+              speedRetention = Math.min(speedRetention, result.speedRetention);
+
+              if (
+                (event === 'collision' && totalCollisions > 0) ||
+                (event === 'nearMiss' && totalNearMisses > 0)
+              ) {
+                for (let extra = 0; extra < 4; extra += 1) {
+                  previous = current;
+                  current += 200;
+                  const duplicateCheck = traffic.update(1 / 60, previous, current, roadX);
+                  totalCollisions += duplicateCheck.collisions;
+                  totalNearMisses += duplicateCheck.nearMisses;
+                }
+                break;
+              }
+            }
+
+            return { totalCollisions, totalNearMisses, cargoDamage, speedRetention };
+          }
+
+          const collision = runUntilEvent(new Traffic(), -0.52, 'collision');
+          assert.equal(collision.totalCollisions, 1);
+          assert.equal(collision.totalNearMisses, 0);
+          assert.equal(collision.cargoDamage, 7);
+          assert.equal(collision.speedRetention, 0.68);
+
+          const nearMiss = runUntilEvent(new Traffic(), -0.05, 'nearMiss');
+          assert.equal(nearMiss.totalCollisions, 0);
+          assert.equal(nearMiss.totalNearMisses, 1);
+
+          const scoring = new Scoring();
+          scoring.applyStep(1, 0);
+          assert.equal(scoring.score, 250);
+          assert.equal(scoring.combo, 2);
+          scoring.applyStep(1, 0);
+          assert.equal(scoring.score, 750);
+          assert.equal(scoring.combo, 3);
+          scoring.applyStep(0, 1);
+          assert.equal(scoring.score, 600);
+          assert.equal(scoring.combo, 1);
+          assert.equal(scoring.collisionCount, 1);
+          assert.equal(scoring.bestCombo, 3);
+
+          const player = new Player();
+          player.speed = 2000;
+          player.applyCollision(11, 0.5);
+          assert.equal(player.speed, 1000);
+          assert.equal(player.cargoHealth, 89);
+          player.applyCollision(200, 0.5);
+          assert.equal(player.cargoHealth, 0);
+          TS
+          ./node_modules/.bin/tsx .m3-rules-smoke.ts
+          rm .m3-rules-smoke.ts
+
+      - name: Exercise production traffic render and run result
+        run: |
+          python3 -m http.server 4173 --directory WebGame/dist >/tmp/night-courier-m3-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          for attempt in {1..10}; do
+            if curl --fail --silent http://127.0.0.1:4173/ >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          cd WebGame
+          node --input-type=module <<'NODE'
+          import puppeteer from 'puppeteer-core';
+          import fs from 'node:fs';
+
+          const browser = await puppeteer.launch({
+            executablePath: '/usr/bin/google-chrome',
+            headless: true,
+            args: ['--no-sandbox', '--disable-gpu'],
+          });
+          const page = await browser.newPage();
+          await page.setViewport({ width: 960, height: 540, deviceScaleFactor: 1 });
+          await page.goto('http://127.0.0.1:4173/', { waitUntil: 'domcontentloaded' });
+          await page.waitForSelector('canvas', { timeout: 10000 });
+          await new Promise((resolve) => setTimeout(resolve, 700));
+          await page.screenshot({ path: '/tmp/m3-00-start.png' });
+
+          await page.keyboard.down('ArrowUp');
+          await new Promise((resolve) => setTimeout(resolve, 6000));
+          await page.screenshot({ path: '/tmp/m3-01-traffic.png' });
+
+          await page.keyboard.down('ArrowLeft');
+          await new Promise((resolve) => setTimeout(resolve, 700));
+          await page.keyboard.up('ArrowLeft');
+          await new Promise((resolve) => setTimeout(resolve, 4500));
+          await page.screenshot({ path: '/tmp/m3-02-risk.png' });
+
+          await new Promise((resolve) => setTimeout(resolve, 17000));
+          await page.keyboard.up('ArrowUp');
+          await page.screenshot({ path: '/tmp/m3-03-result.png' });
+          await browser.close();
+
+          for (const path of [
+            '/tmp/m3-00-start.png',
+            '/tmp/m3-01-traffic.png',
+            '/tmp/m3-02-risk.png',
+            '/tmp/m3-03-result.png',
+          ]) {
+            if (!fs.existsSync(path) || fs.statSync(path).size === 0) {
+              throw new Error(`Missing screenshot: ${path}`);
+            }
+          }
+          NODE
+
+      - name: Upload M3 screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: night-courier-m3-traffic
+          path: /tmp/m3-*.png
+          if-no-files-found: error
