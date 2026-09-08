@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#070a12" />
+    <meta name="theme-color" content="#080c18" />
     <title>Night Courier</title>
     <style>
       html,
@@ -17,8 +17,9 @@
       html,
       body {
         overflow: hidden;
-        background: #070a12;
+        background: #080c18;
         touch-action: none;
+        overscroll-behavior: none;
       }
 
       #game-container {
@@ -29,11 +30,44 @@
 
       canvas {
         display: block;
+        image-rendering: pixelated;
+      }
+
+      #orientation-notice {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+        padding:
+          max(24px, env(safe-area-inset-top))
+          max(24px, env(safe-area-inset-right))
+          max(24px, env(safe-area-inset-bottom))
+          max(24px, env(safe-area-inset-left));
+        background: #080c18;
+        color: #f5f3ea;
+        font: 700 18px/1.5 monospace;
+        text-align: center;
+        white-space: pre-line;
+      }
+
+      @media (orientation: portrait) and (max-width: 1024px) {
+        #game-container {
+          visibility: hidden;
+        }
+
+        #orientation-notice {
+          display: flex;
+        }
       }
     </style>
   </head>
   <body>
     <div id="game-container"></div>
+    <div id="orientation-notice" aria-live="polite">ROTATE DEVICE
+Night Courier plays in landscape.</div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

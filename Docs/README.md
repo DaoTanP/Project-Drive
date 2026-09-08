@@ -28,6 +28,11 @@ This directory is the authoritative documentation root for **Night Courier**.
 - [`03-Technical/Technical-Design.md`](03-Technical/Technical-Design.md) — authoritative technical implementation contract, including projected road/traffic/roadside objects, environment-zone ownership and tunnel presentation constraints.
 - [`03-Technical/Pseudo-3D-Road-Research-Notes.md`](03-Technical/Pseudo-3D-Road-Research-Notes.md) — research synthesis from pseudo-3D racer references. It captures ideas, algorithms, trade-offs and rejected approaches only; it is **not** a source-code/template contract.
 
+## Active production planning
+
+- [`05-Planning/M5-Presentation-and-Production-Assets.md`](05-Planning/M5-Presentation-and-Production-Assets.md) — M5 dependency order, landscape/touch contract, five-state visual-steering mapping, asset-batch sequencing and production integration rules.
+- [`06-Quality/M5-Presentation-Acceptance.md`](06-Quality/M5-Presentation-Acceptance.md) — M5 foundation, viewport, touch, sprite, roadside, HUD, VFX/audio and completion acceptance gates.
+
 ## Current authoritative baseline
 
 1. Night Courier is a **small pseudo-3D arcade delivery racer**, not a general racing framework.
@@ -45,7 +50,7 @@ This directory is the authoritative documentation root for **Night Courier**.
 13. Development runs directly in a browser; production is packaged as static offline web content and hosted fullscreen by Unity.
 14. Unity and the web game communicate through a narrow versioned JSON bridge.
 15. Unity owns persistent progression/high scores; the web game owns only the current run state.
-16. The initial code architecture targets **12 TypeScript source files**. Environment-zone work does not authorize a new `BiomeManager`/`EnvironmentSystem`; extraction requires demonstrated complexity.
+16. The initial code architecture targets **12 TypeScript source files**. Environment-zone or production-presentation work does not authorize generic manager/service layers; extraction requires demonstrated complexity.
 17. The pseudo-3D renderer baseline is **projected fixed-length road segments** compiled from compact authored road sections; external racer references inform algorithms only and do not define Night Courier's source implementation.
 18. Gameplay simulation uses a bounded **60 Hz fixed-step** inside `GameScene` while Phaser owns the render frame; road tessellation and vehicle speed remain independently tunable.
 19. Curves use gradual accumulated lateral displacement with continuity across segment boundaries; hills use elevation in the same projection model with crest occlusion/clipping.
@@ -54,6 +59,10 @@ This directory is the authoritative documentation root for **Night Courier**.
 22. Road geometry, lane markings, simple tunnel enclosure, simple HUD bars/text and basic screen effects are procedural; concept-art breadth does not expand gameplay scope automatically.
 23. The player steering set is exactly five separately authored `64 x 64` transparent frames for the initial release. `Center / Left / Hard Left` use approximately `0° / 10–12° / 20–22°` yaw progression, with symmetric angle metrics on the right; runtime bitmap mirroring is not the production solution because asymmetric hero-car details must remain on their real side.
 24. Player steering frames preserve a common tire-contact registration, stable apparent scale, controlled rear-plane contraction and progressive side/wheel visibility. Each frame follows Night Courier 20 and has a hard cap of **24 visible colors** excluding transparency.
+25. Initial gameplay presentation is **landscape-only** at a `960 x 540` logical canvas with aspect-preserving FIT scaling; portrait browser fallback asks the user to rotate rather than running a separate portrait gameplay layout.
+26. Touch, keyboard and optional gamepad all normalize into the same `InputState`; touch-specific controls must not leak into `Player` driving logic.
+27. Five player textures are selected from a separate smoothed visual-steering presentation value so binary input can traverse moderate steering poses without changing physics.
+28. Production runtime assets live under the shared `WebGame/public/assets/{player,traffic,props,backgrounds,fx,ui,fonts,audio}` categories. Source art and per-zone asset-pack directories remain outside the runtime structure.
 
 ## External-reference discipline
 
