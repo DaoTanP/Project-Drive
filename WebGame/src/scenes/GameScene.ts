@@ -1,6 +1,13 @@
 import Phaser from 'phaser';
 
 import {
+  PLAYER_ANCHOR_X,
+  PLAYER_ANCHOR_Y,
+  PLAYER_DISPLAY_SIZE,
+  PLAYER_SOURCE_SIZE,
+  type PlayerTextureKey,
+} from '../config';
+import {
   advanceGameState,
   createGameState,
   createRunResult,
@@ -13,7 +20,6 @@ import { Player } from '../game/Player';
 import { Road } from '../game/Road';
 import { Scoring } from '../game/Scoring';
 import { Traffic } from '../game/Traffic';
-import { PLAYER_SOURCE_SIZE, type PlayerTextureKey } from './BootScene';
 
 const FIXED_STEP = 1 / 60;
 const MAX_FRAME_DELTA = 0.15;
@@ -21,10 +27,6 @@ const MAX_CATCH_UP_STEPS = 5;
 const RUN_TIME_LIMIT_SECONDS = 300;
 const RISKY_TRAFFIC_GAP_SCALE = 0.82;
 const SAFE_TRAFFIC_GAP_SCALE = 1.15;
-
-const PLAYER_DISPLAY_SIZE = 256;
-const PLAYER_ANCHOR_X = 128;
-const PLAYER_ANCHOR_Y = 232;
 const PLAYER_SCREEN_Y = 0.84;
 const VISUAL_STEER_RESPONSE_PER_SECOND = 5.5;
 
