@@ -4,7 +4,7 @@
 
 This document defines acceptance evidence for M5. It separates implementation completion from visual, mobile and asset-production validation.
 
-Do not mark a production-art task complete because an asset merely loads or because a placeholder screenshot looks plausible.
+Do not mark a production-art task complete because an asset merely loads, because a staging image can be downscaled at runtime, or because a placeholder screenshot looks plausible.
 
 ## 2. M5A foundation acceptance
 
@@ -76,6 +76,37 @@ M5.2 therefore remains open until the touch and production HUD surfaces exist.
 
 The five player frames must pass the authoritative `Player-Sprite-Angle-Specification.md` checklist first.
 
+### 4.1 256 x 256 source-format gate
+
+The canonical player production source is now **256 x 256 px per frame** with contact anchor approximately `(128,232)`.
+
+Runtime integration currently satisfies:
+
+- [x] `BootScene` queues all five canonical player texture keys;
+- [x] `GameScene` renders a Phaser image instead of the procedural player placeholder;
+- [x] initial player display box is `256 x 256`;
+- [x] image origin is derived from source contact anchor `(128,232)`;
+- [x] texture selection uses smoothed `visualSteer` presentation state;
+- [x] presentation texture selection does not change road-space collision rules.
+
+The currently committed high-resolution PNGs are staging references and are **not accepted production-size assets**:
+
+- `player_rear_center.png`: observed `1254 x 1254`;
+- `player_rear_right.png`: observed `1254 x 1254`;
+- `player_rear_left.png`: observed `1256 x 1256`;
+- `player_rear_hard_left.png`: observed `1256 x 1256`;
+- `player_rear_hard_right.png`: observed `1256 x 1256`.
+
+Production-size acceptance requires:
+
+- [ ] every required player PNG is exactly `256 x 256`;
+- [ ] transparency is preserved;
+- [ ] all five use compatible `(128,232)` contact registration;
+- [ ] no staging file is accepted merely because runtime downscaling makes it displayable;
+- [ ] the final 256px files pass the full angle/identity/palette checklist.
+
+### 4.2 Gameplay visual acceptance
+
 Runtime acceptance additionally requires:
 
 - [ ] binary keyboard/touch steering visibly traverses moderate pose before hard pose;
@@ -83,7 +114,7 @@ Runtime acceptance additionally requires:
 - [ ] pose selection does not affect physics/collision state;
 - [ ] no threshold flicker is visible at representative frame rates;
 - [ ] player anchor remains stable across all five textures;
-- [ ] no unintended smoothing or obvious fractional-scale shimmer is visible;
+- [ ] no unintended smoothing or obvious fractional-scale shimmer is visible with final 256px sources;
 - [ ] the player remains readable over city, forest, mountain-pass and tunnel compositions.
 
 Do not expand to seven yaw states or pitch families before this gate fails for a documented reason.
@@ -151,6 +182,7 @@ M5 is complete only when:
 - [ ] keyboard and touch are production-usable;
 - [ ] optional gamepad has either been added or explicitly skipped without delaying mobile completion;
 - [ ] Batch A/B/C accepted assets are integrated;
+- [ ] all five player production sources are exact `256 x 256` accepted exports;
 - [ ] runtime image count remains within the approved budget or a documented exception exists;
 - [ ] font/music/SFX licensing is known and compatible with packaging;
 - [ ] all five zone compositions remain visually coherent and distinguishable;

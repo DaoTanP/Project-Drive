@@ -30,7 +30,7 @@ Do not commission the full asset inventory before Batch A has been integrated an
 
 ## 3. M5A — production foundation
 
-**Status:** complete. Runtime/config/build and browser-shell checks passed, including an injected missing-required-asset test proving Boot remains active and Game does not start on load failure. M5.1/M5.2 production touch/HUD validation and all production art remain later M5 scope.
+**Status:** complete. Runtime/config/build and browser-shell checks passed, including an injected missing-required-asset test proving Boot remains active and Game does not start on load failure. M5.1/M5.2 production touch/HUD validation and all production-art acceptance remain later M5 scope.
 
 M5A establishes infrastructure and contracts without adding fake production assets.
 
@@ -119,7 +119,7 @@ Touch implementation belongs in `Input.ts` plus minimal scene-owned visual contr
 
 The five player sprites are presentation state, not five physics modes.
 
-The simulation continues to consume raw normalized steering. `GameScene` maintains a separate presentation value conceptually named `visualSteer` that approaches the current steering input over a short arcade response window.
+The simulation continues to consume raw normalized steering. `GameScene` maintains a separate presentation value named `visualSteer` that approaches the current steering input over a short arcade response window.
 
 This separation is required so binary keyboard/touch input can visibly pass through the moderate steering frames instead of snapping directly from `Center` to `Hard Left/Hard Right`.
 
@@ -146,6 +146,24 @@ The exact response rate is tuning. Requirements are:
 
 Do not introduce a player animator/state-machine framework solely for five steering textures.
 
+### 256 x 256 resolution contract
+
+The previous 64 x 64 player source contract is retired.
+
+The current player presentation contract is:
+
+```text
+source canvas = 256 x 256 px
+initial runtime display box = 256 x 256
+canonical contact anchor = (128, 232)
+```
+
+The resolution change does not alter yaw angles, five-state count, FLAT-only scope, physics or road-space collision.
+
+The five high-resolution player PNGs currently committed are staging references rather than accepted production exports. Their observed dimensions are `1254 x 1254` for Center/Right and `1256 x 1256` for Left/Hard Left/Hard Right. Runtime may scale them while the integration path is validated, but production acceptance requires explicit exact 256 x 256 exports with stable registration.
+
+Do not silently resample the staging PNGs and declare them final without visual review.
+
 ## 7. Batch A — gameplay-readable art
 
 Produce and integrate only after M5A contracts are stable.
@@ -154,7 +172,7 @@ Required initial art:
 
 ### Player
 
-Exactly five required `64 x 64` transparent FLAT frames:
+Exactly five required **`256 x 256`** transparent FLAT frames:
 
 ```text
 player_rear_hard_left.png
@@ -165,6 +183,10 @@ player_rear_hard_right.png
 ```
 
 They follow `Player-Sprite-Angle-Specification.md` exactly.
+
+Runtime integration now preloads these five keys, renders the player with a Phaser image rather than the procedural player placeholder, uses the `(128,232)` source contact anchor and selects textures through smoothed `visualSteer`.
+
+This implementation progress does **not** mark the player art accepted: the currently committed staging PNGs must still be replaced/re-exported at exact 256 x 256 and pass the full visual/registration checklist.
 
 ### Traffic
 
@@ -192,8 +214,10 @@ Batch A should remain approximately 10–11 images.
 
 Before Batch B:
 
+- all five player source PNGs are exact 256 x 256 exports;
 - player pose transitions read as one vehicle at gameplay speed;
 - player remains readable against city/forest/mountain-pass/tunnel placeholder compositions;
+- player contact anchor remains stable across all five states;
 - traffic silhouettes remain readable at near-miss/collision distances;
 - pivots and transparent bounds are stable;
 - nearest-neighbor rendering shows no obvious smoothing;
@@ -331,4 +355,4 @@ M5A is complete when:
 - no fake production image/audio/font has been added merely to exercise the loader;
 - `npm run typecheck`, production build, static-output smoke and representative shell checks pass.
 
-M5.1, final M5.2 touch/HUD validation and M5.6+ remain incomplete until their actual implementation/validation gates are satisfied.
+M5.1, final M5.2 touch/HUD validation and the unaccepted production-art portions of M5.6+ remain incomplete until their actual implementation/validation gates are satisfied.

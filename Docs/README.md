@@ -21,7 +21,7 @@ This directory is the authoritative documentation root for **Night Courier**.
 - [`01-Design/Environment-Zones-and-Roadside-Composition.md`](01-Design/Environment-Zones-and-Roadside-Composition.md) — authoritative `city` / `rural` / `forest` / `mountain-pass` / `tunnel` composition, transition, deterministic roadside-placement and route-mapping rules.
 - [`01-Design/Art-Direction-and-Color-Palette.md`](01-Design/Art-Direction-and-Color-Palette.md) — authoritative visual identity, Night Courier 20 palette and zone-aware color/value rules.
 - [`01-Design/Asset-Inventory-and-Sprite-Requirements.md`](01-Design/Asset-Inventory-and-Sprite-Requirements.md) — authoritative runtime sprite/audio inventory, procedural-vs-authored rules, asset budgets, naming, pivots and production batches.
-- [`01-Design/Player-Sprite-Angle-Specification.md`](01-Design/Player-Sprite-Angle-Specification.md) — authoritative 64x64 player steering-frame contract: camera, yaw progression, rear-plane width, side exposure, wheel visibility, registration, palette/color cap and per-frame acceptance rules.
+- [`01-Design/Player-Sprite-Angle-Specification.md`](01-Design/Player-Sprite-Angle-Specification.md) — authoritative 256x256 player steering-frame contract: camera, yaw progression, rear-plane width, side exposure, wheel visibility, registration, palette/color cap and per-frame acceptance rules.
 
 ## Technical references
 
@@ -57,12 +57,13 @@ This directory is the authoritative documentation root for **Night Courier**.
 20. Initial route branching selects a continuation of authored road sections; a generalized simultaneous multi-road/fork renderer is deferred unless readability testing requires it.
 21. The visual baseline is a **late-1990s Japanese-inspired night route** using the custom **Night Courier 20** palette: cool dark neutrals dominate, practical warm lights support readability, and neon is concentrated mainly in city/commercial accents rather than every zone.
 22. Road geometry, lane markings, simple tunnel enclosure, simple HUD bars/text and basic screen effects are procedural; concept-art breadth does not expand gameplay scope automatically.
-23. The player steering set is exactly five separately authored `64 x 64` transparent frames for the initial release. `Center / Left / Hard Left` use approximately `0° / 10–12° / 20–22°` yaw progression, with symmetric angle metrics on the right; runtime bitmap mirroring is not the production solution because asymmetric hero-car details must remain on their real side.
-24. Player steering frames preserve a common tire-contact registration, stable apparent scale, controlled rear-plane contraction and progressive side/wheel visibility. Each frame follows Night Courier 20 and has a hard cap of **24 visible colors** excluding transparency.
+23. The player steering set is exactly five separately authored `256 x 256` transparent FLAT frames for the initial release. `Center / Left / Hard Left` use approximately `0° / 10–12° / 20–22°` yaw progression, with symmetric angle metrics on the right; runtime bitmap mirroring is not the production solution because asymmetric hero-car details must remain on their real side.
+24. Player steering frames preserve canonical contact registration around `(128,232)`, stable apparent scale, controlled rear-plane contraction and progressive side/wheel visibility. Each frame follows Night Courier 20 and has a hard cap of **24 visible colors** excluding transparency.
 25. Initial gameplay presentation is **landscape-only** at a `960 x 540` logical canvas with aspect-preserving FIT scaling; portrait browser fallback asks the user to rotate rather than running a separate portrait gameplay layout.
 26. Touch, keyboard and optional gamepad all normalize into the same `InputState`; touch-specific controls must not leak into `Player` driving logic.
 27. Five player textures are selected from a separate smoothed visual-steering presentation value so binary input can traverse moderate steering poses without changing physics.
 28. Production runtime assets live under the shared `WebGame/public/assets/{player,traffic,props,backgrounds,fx,ui,fonts,audio}` categories. Source art and per-zone asset-pack directories remain outside the runtime structure.
+29. Player runtime presentation initially uses a `256 x 256` display box with source contact anchor `(128,232)`. The currently committed `1254/1256`-square player PNGs are staging references and must be explicitly re-exported at exactly `256 x 256` before Batch A player acceptance.
 
 ## External-reference discipline
 

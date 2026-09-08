@@ -94,6 +94,28 @@ These five files are the complete current player pitch/yaw production set. They 
 
 Do not create `UPHILL` or `DOWNHILL` player variants in the current phase. Those families are a deferred extension described in [`Player-Sprite-Angle-Specification.md`](Player-Sprite-Angle-Specification.md) and become eligible only if representative gameplay demonstrates that road-grade presentation cannot be solved acceptably with the current projection/camera treatment.
 
+### Canonical source/export contract
+
+All five required player steering frames now use:
+
+- exactly **256 x 256 px** canvas;
+- transparent PNG;
+- canonical gameplay contact anchor approximately **`(128,232)`**;
+- fixed camera/registration across all states;
+- the same Night Courier 20 palette/color-cap rules.
+
+The previous 64 x 64 contract is retired. Increasing resolution does not increase yaw-state count, pitch-family scope or gameplay complexity.
+
+The five high-resolution PNGs committed immediately before this contract are **staging references**, not accepted production exports. Their observed canvases are currently inconsistent:
+
+- `player_rear_center.png`: `1254 x 1254`;
+- `player_rear_right.png`: `1254 x 1254`;
+- `player_rear_left.png`: `1256 x 1256`;
+- `player_rear_hard_left.png`: `1256 x 1256`;
+- `player_rear_hard_right.png`: `1256 x 1256`.
+
+Runtime may temporarily scale those files while integration is validated, but Batch A player acceptance requires explicit 256 x 256 production exports. Do not silently resample the staging PNGs and declare them final without visual review.
+
 Recommended polish frames only if they materially improve feel:
 
 - center brake-light state;
@@ -330,11 +352,11 @@ Exact grouping may change during audio implementation. Tunnel reverb or zone-spe
 
 The logical game resolution is `960 x 540`.
 
-Approximate starting sizes, to be validated visually rather than treated as strict contracts:
+Approximate starting sizes, to be validated visually rather than treated as strict contracts unless explicitly marked:
 
 | Category | Typical native size |
 |---|---|
-| player vehicle | around `128 x 64` |
+| player steering frame | **exactly `256 x 256`** |
 | traffic car | around `64 x 48` to `96 x 64` |
 | truck | around `96 x 80` |
 | small/medium prop | around `32 x 64` to `128 x 128` |
@@ -343,15 +365,16 @@ Approximate starting sizes, to be validated visually rather than treated as stri
 | UI icon | around `24 x 24` or `32 x 32` |
 | parallax strip | typically `512–1024+ px` wide depending on tiling needs |
 
-The more important rule is consistent apparent pixel density. Assets must look like they belong to the same native pixel scale when projected into the gameplay view.
+The more important general rule is consistent apparent pixel density. Assets must look like they belong to the same native pixel scale when projected into the gameplay view.
 
-For the five player steering frames specifically, the authoritative size is **64 x 64 px** as defined by [`Player-Sprite-Angle-Specification.md`](Player-Sprite-Angle-Specification.md); that explicit contract overrides the generic player-size estimate in the table above.
+For the five player steering frames specifically, **256 x 256 px is a hard production contract**, not approximate guidance.
 
 ## 13. Sprite anchors and pivots
 
 Use predictable anchors so projected placement remains stable:
 
-- vehicles: bottom-center near tire/road contact line;
+- player steering frames: canonical contact anchor approximately `(128,232)` on the 256 x 256 canvas;
+- other vehicles: bottom-center near tire/road contact line;
 - vertical roadside props: bottom-center at ground contact;
 - tree/rock clusters: bottom-center or explicitly documented ground-contact anchor;
 - hanging/overhead/tunnel props: explicit authored pivot matching their support/road alignment;
@@ -423,12 +446,14 @@ The atlas is an optimization/packaging step, not an architectural dependency.
 
 Produce first:
 
-- five FLAT player steering frames;
+- five **256 x 256** FLAT player steering frames;
 - taxi/hatchback/van/truck rear views, with at least three traffic visuals available;
 - city far skyline;
 - city mid skyline/building strip.
 
 Approximately **10–11 images** are sufficient to move from geometric placeholder gameplay to an art-readable prototype.
+
+The currently committed high-resolution player PNGs are staging references only; replace/re-export them at exact 256 x 256 before marking the player part of Batch A accepted.
 
 ### Batch B — environment identity
 
@@ -472,7 +497,7 @@ Pitch-family expansion is **not** part of Batch C by default. It requires a sepa
 
 | Group | Initial target |
 |---|---:|
-| player vehicle | 5–8 frames |
+| player vehicle | 5–8 frames, each `256 x 256` |
 | traffic | 4–6 images |
 | roadside/environment props | 15–18 images shared across zones |
 | backgrounds/parallax | 5–7 images shared across zones |
@@ -521,5 +546,7 @@ An asset is production-ready only when it:
 - has correct transparent bounds/pivot expectations;
 - loads from local runtime assets with no remote dependency;
 - is actually used by the current game or an explicitly approved near-term task.
+
+For player frames specifically, production-ready additionally requires exact **256 x 256** source dimensions and the canonical `(128,232)` registration contract.
 
 Producing an asset does not justify adding a system to use it. Gameplay scope remains authoritative over concept-art breadth.
