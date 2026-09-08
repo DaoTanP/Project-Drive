@@ -15,16 +15,18 @@ This backlog is ordered for implementation. Tasks should remain small enough to 
 
 M1 uses the algorithmic guidance summarized in [`../03-Technical/Pseudo-3D-Road-Research-Notes.md`](../03-Technical/Pseudo-3D-Road-Research-Notes.md), but implementation must remain original to Night Courier's Phaser/TypeScript architecture.
 
-- [ ] M1.1 Define compact authored `RoadSectionSpec` data and the internal fixed-length runtime road-segment/endpoint model in `Road.ts`.
-- [ ] M1.2 Compile authored sections into runtime segments and implement stable segment lookup/interpolation by track position.
-- [ ] M1.3 Implement world -> camera -> screen perspective projection with bounded visible-segment lookup.
-- [ ] M1.4 Render a straight procedural road near-to-far, including a basic crest/max-visible-Y rejection boundary.
-- [ ] M1.5 Add curves using accumulated lateral displacement, fractional-base-segment continuity and simple enter/hold/leave easing.
-- [ ] M1.6 Add hills/elevation and crest clipping only after straight/curve projection is stable.
-- [ ] M1.7 Implement normalized keyboard input.
-- [ ] M1.8 Implement acceleration, drag/braking and max speed without coupling vehicle tuning to road-segment length.
-- [ ] M1.9 Implement lateral steering and tune any curve-induced lateral effect as arcade behavior rather than physical simulation.
-- [ ] M1.10 Add a bounded 60 Hz fixed-step simulation accumulator and discard/clamp abnormal frame gaps after focus/lifecycle changes.
+**Status:** implementation and automated/browser smoke validation complete. Human control-feel/continuous curve-transition acceptance remains recorded in [`../06-Quality/M1-Road-Player-Acceptance.md`](../06-Quality/M1-Road-Player-Acceptance.md).
+
+- [x] M1.1 Define compact authored `RoadSectionSpec` data and the internal fixed-length runtime road-segment/endpoint model in `Road.ts`.
+- [x] M1.2 Compile authored sections into runtime segments and implement stable segment lookup/interpolation by track position.
+- [x] M1.3 Implement world -> camera -> screen perspective projection with bounded visible-segment lookup.
+- [x] M1.4 Render a straight procedural road near-to-far, including a basic crest/max-visible-Y rejection boundary.
+- [x] M1.5 Add curves using accumulated lateral displacement, fractional-base-segment continuity and simple enter/hold/leave easing.
+- [x] M1.6 Add hills/elevation and crest clipping only after straight/curve projection is stable.
+- [x] M1.7 Implement normalized keyboard input.
+- [x] M1.8 Implement acceleration, drag/braking and max speed without coupling vehicle tuning to road-segment length.
+- [x] M1.9 Implement lateral steering and tune any curve-induced lateral effect as arcade behavior rather than physical simulation.
+- [x] M1.10 Add a bounded 60 Hz fixed-step simulation accumulator and discard/clamp abnormal frame gaps after focus/lifecycle changes.
 
 ### M1 explicit non-goals
 
