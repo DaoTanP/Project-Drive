@@ -7,12 +7,42 @@ import { ResultScene } from './scenes/ResultScene';
 export const GAME_WIDTH = 960;
 export const GAME_HEIGHT = 540;
 
+/**
+ * Authoritative runtime representation of the Night Courier 20 palette.
+ * Token names map directly to NC-00..NC-19 in Art-Direction-and-Color-Palette.md.
+ */
+export const NIGHT_COURIER_PALETTE = {
+  nc00: 0x080c18,
+  nc01: 0x0e1628,
+  nc02: 0x16223a,
+  nc03: 0x22334d,
+  nc04: 0x344a64,
+  nc05: 0x64748a,
+  nc06: 0x9baabc,
+  nc07: 0xd5dce5,
+  nc08: 0xf5f3ea,
+  nc09: 0xf4c95d,
+  nc10: 0xff914d,
+  nc11: 0xeb5548,
+  nc12: 0xff3b8d,
+  nc13: 0xb56cff,
+  nc14: 0x22d3ee,
+  nc15: 0x29a9e8,
+  nc16: 0x55e06f,
+  nc17: 0xd6f04b,
+  nc18: 0xffcc33,
+  nc19: 0xff455d,
+} as const;
+
+export type NightCourierPaletteToken = keyof typeof NIGHT_COURIER_PALETTE;
+
 export const gameConfig: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   parent: 'game-container',
   width: GAME_WIDTH,
   height: GAME_HEIGHT,
-  backgroundColor: '#070a12',
+  backgroundColor: NIGHT_COURIER_PALETTE.nc00,
+  pixelArt: true,
   scene: [BootScene, GameScene, ResultScene],
   scale: {
     mode: Phaser.Scale.FIT,
