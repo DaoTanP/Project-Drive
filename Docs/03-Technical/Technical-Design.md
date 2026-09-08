@@ -45,7 +45,7 @@ Within each fixed simulation step:
 ```text
 read normalized input
     -> update player arcade motion
-    -> advance track position
+    -> advance route position
     -> update traffic state
     -> resolve collision / near-miss state
     -> update scoring + timer
@@ -89,7 +89,9 @@ Compact section-level data expresses designer intent such as:
 - approximate section length;
 - target curve amount/direction;
 - target elevation change;
-- optional semantic identity needed later for branching/content placement.
+- environment-zone identity;
+- optional route/branch semantics;
+- optional authored landmark placements.
 
 Section data is not directly rendered.
 
@@ -101,12 +103,13 @@ Authored sections are expanded into fixed-length runtime segments suitable for p
 - curve contribution;
 - two endpoints (`p1`, `p2`);
 - endpoint world-space elevation/depth;
+- semantic zone/placement metadata or a stable reference to it;
 - transient camera/screen projection values or equivalent reusable projection storage;
 - an occlusion/clipping boundary used when hills hide farther content.
 
 This authoring/runtime distinction prevents track authoring concerns from leaking into the frame loop while keeping the complete subsystem inside one source file for the initial scope.
 
-The first version keeps track data in `Road.ts`. Move it to JSON or dedicated data modules only when non-programmer editing or multiple tracks make that separation valuable.
+The first version keeps route/zone data in `Road.ts`. Move it to JSON or dedicated data modules only when non-programmer editing or multiple tracks make that separation valuable.
 
 ## 6. Pseudo-3D projection model
 
@@ -127,7 +130,7 @@ The renderer needs only enough perspective math to create convincing arcade dept
 Important coordinate-space rules:
 
 - longitudinal road distance remains a stable world/track-space quantity;
-- lateral player/traffic position is represented in road-relative space where practical;
+- lateral player/traffic/roadside position is represented in road-relative space where practical;
 - screen-space position is derived output, never authoritative gameplay state;
 - collision remains in road/track space because projected size changes continuously with depth.
 
@@ -192,9 +195,168 @@ approach decision point
     -> continue through the same road subsystem
 ```
 
+Preferred route/environment mapping:
+
+```text
+city
+ -> rural/outskirts
+ -> branch
+    -> short/risky: mountain-pass -> tunnel
+    -> long/safer: forest -> rural
+ -> city-fringe/depot finish
+```
+
 Only introduce simultaneous multi-road/fork geometry if playtesting proves that the branch is unreadable without it.
 
-## 11. Traffic
+## 11. Environment zones and roadside composition
+
+The initial route uses exactly five presentation zones:
+
+```ts
+type EnvironmentZone =
+  | 'city'
+  | 'rural'
+  | 'forest'
+  | 'mountain-pass'
+  | 'tunnel';
+```
+
+These are authored presentation semantics, not new gameplay modes or scene boundaries.
+
+The authoritative design/composition rules are defined in [`../01-Design/Environment-Zones-and-Roadside-Composition.md`](../01-Design/Environment-Zones-and-Roadside-Composition.md).
+
+### 11.1 Ownership
+
+Keep the initial implementation inside existing boundaries:
+
+- `Road.ts` owns authored section zone metadata, deterministic roadside-placement rules and the projection query needed by roadside objects;
+- `GameScene` orchestrates drawing order and shared Phaser objects if required;
+- no `BiomeManager`, `EnvironmentSystem`, generalized prop ECS or scene-per-zone architecture is introduced.
+
+Extraction is allowed only if implementation evidence later proves `Road.ts` has an independently changing presentation responsibility large enough to justify it.
+
+### 11.2 Environment profile intent
+
+A zone may conceptually resolve a compact profile such as:
+
+```ts
+interface EnvironmentProfile {
+  propPool: readonly PropId[];
+  density: number;
+  backgroundProfile: BackgroundProfileId;
+  lightingProfile: LightingProfileId;
+}
+```
+
+This is an example of data shape, not a required exported API. Zone differences should remain tuning/content data rather than subclass behavior.
+
+### 11.3 Deterministic roadside placement
+
+Ambient roadside props must be stable across repeated runs of the same route/branch.
+
+Do not call frame-time random placement.
+
+Stable placement should derive conceptually from:
+
+```text
+segment index
++ route/branch id
++ environment zone
++ stable seed
+```
+
+Two placement types are enough:
+
+- **authored landmark:** explicit route-choice sign, tunnel portal, destination marker, major gantry;
+- **deterministic ambient:** streetlights, guardrails, utility poles, trees, rocks, reflectors and minor signs.
+
+A compact prop rule may express:
+
+- allowed zones;
+- left/right/both side policy;
+- road-edge offset;
+- target/minimum spacing;
+- density/weight;
+- mirror permission;
+- optional `inside-curve` / `outside-curve` preference.
+
+Chevron/caution props should prefer the outside of curves when this improves bend readability.
+
+### 11.4 Projected roadside sprites
+
+Roadside objects use the same camera/road projection model as traffic.
+
+Conceptual object state:
+
+```text
+route/segment position
++ road-relative lateral offset
++ authored ground/pivot height
+    -> road projection query
+    -> screen x/y/scale
+    -> apply segment crest clip
+```
+
+Roadside screen coordinates are derived every render; object world/route placement remains authoritative.
+
+Render projected roadside objects far-to-near and apply the current segment/crest clipping boundary so trees/signs/rocks behind hills do not draw over foreground terrain.
+
+### 11.5 Zone transitions
+
+Zone changes should be authored across several sections where practical.
+
+Prefer:
+
+1. introduce next-zone signature assets at low density;
+2. reduce previous-zone density/background contribution;
+3. preserve shared infrastructure across the boundary;
+4. reach the next zone's normal profile after the transition distance.
+
+Tunnel portal entry/exit is the deliberate exception where enclosure can change sharply at an authored landmark.
+
+### 11.6 Background/parallax selection
+
+Backgrounds remain a small shared set, approximately **5–7 images** total.
+
+Do not load a unique three-layer background stack for each zone.
+
+Recommended reuse:
+
+- city far/mid building layers for `city`;
+- distant ridge reused by `rural`, `forest`, `mountain-pass`;
+- vegetation/tree-line layer reused by `rural` and `forest`;
+- optional near natural layer selectively reused by `forest`/`mountain-pass`;
+- normal outdoor parallax disabled/replaced while in `tunnel`.
+
+### 11.7 Tunnel rendering
+
+Tunnel remains the same road simulation and projection.
+
+Preferred implementation uses:
+
+- authored portal landmark sprite/element;
+- procedural projected side-wall bands/quads derived from visible road edges;
+- simple dark upper-frame/ceiling enclosure treatment;
+- repeated projected tunnel lights/reflectors/caution props;
+- outdoor parallax disabled or visually suppressed inside.
+
+Do not implement a full 3D tunnel mesh, raycast environment or a separate Phaser Scene.
+
+If simple projected wall bands cannot achieve acceptable readability, document the concrete visual failure before expanding the renderer.
+
+### 11.8 Zone-specific geometry remains authored road data
+
+Environment zones may correlate with different road tendencies, but they do not alter vehicle simulation:
+
+- `city`: mild elevation, medium curves, denser infrastructure;
+- `rural`: gentle curves, rolling elevation, open sightlines;
+- `forest`: flowing curves, moderate elevation, safer sightlines;
+- `mountain-pass`: tighter curves, stronger elevation, shorter sightlines;
+- `tunnel`: readable bends/mild elevation, enclosure instead of outdoor scenery.
+
+Do not add zone-specific handling, friction, physics or collision rules.
+
+## 12. Traffic
 
 Traffic entities are data, not subclasses:
 
@@ -211,17 +373,17 @@ The initial behavior types remain only `car`, `van` and `truck`. Multiple sprite
 
 Traffic responsibilities:
 
-- spawn/recycle cars based on track position;
+- spawn/recycle cars based on route position;
 - maintain longitudinal and lateral positions;
 - project visible cars to screen;
 - detect collision envelopes in road/track space;
 - detect one-shot near-miss events.
 
-A segment-indexed/bucketed lookup may be used later if it materially simplifies visible-traffic queries and collision lookahead. `Traffic.ts` remains the owner of traffic state even if it indexes vehicles by road segment.
+Traffic behavior does not change by environment zone unless later playtesting identifies a specific balance requirement. Visual composition may vary traffic density only if it remains simple tuning rather than zone-specific AI.
 
 Avoid screen-space collision because projected scale changes continuously.
 
-## 12. Collision and near-miss
+## 13. Collision and near-miss
 
 Use simplified road-space thresholds.
 
@@ -231,7 +393,7 @@ Each traffic car must guard against awarding the same near miss multiple times.
 
 If speed becomes large enough that a fixed step can cross meaningful collision distance, use bounded substeps or swept longitudinal checks. Do not solve this by forcing game speed to match road-segment length.
 
-## 13. Scoring
+## 14. Scoring
 
 `Scoring.ts` owns score rules. Suggested inputs:
 
@@ -243,7 +405,9 @@ If speed becomes large enough that a fixed step can cross meaningful collision d
 
 Exact numeric tuning is data/constants and should be changed through playtesting without structural changes.
 
-## 14. Input normalization
+Environment zone does not directly multiply score in the initial version. Branch risk/reward should emerge from route length, geometry, traffic density and final time/cargo outcome rather than a hidden biome bonus.
+
+## 15. Input normalization
 
 All sources map to:
 
@@ -257,7 +421,7 @@ interface InputState {
 
 `Player` consumes only this shape. Touch/UI implementation details must not leak into driving logic.
 
-## 15. Pause/resume
+## 16. Pause/resume
 
 On pause:
 - stop simulation progression;
@@ -268,11 +432,11 @@ On resume:
 - ignore the accumulated browser/WebView time gap;
 - reset/clamp the frame accumulator before simulation continues.
 
-## 16. Asset loading, inventory and color baseline
+## 17. Asset loading, inventory and color baseline
 
 Assets are packaged locally. Boot must fail visibly rather than start partially when required assets cannot be loaded.
 
-The authoritative runtime inventory is [`../01-Design/Asset-Inventory-and-Sprite-Requirements.md`](../01-Design/Asset-Inventory-and-Sprite-Requirements.md). Final sprite production follows [`../01-Design/Art-Direction-and-Color-Palette.md`](../01-Design/Art-Direction-and-Color-Palette.md).
+The authoritative runtime inventory is [`../01-Design/Asset-Inventory-and-Sprite-Requirements.md`](../01-Design/Asset-Inventory-and-Sprite-Requirements.md). Final sprite production follows [`../01-Design/Art-Direction-and-Color-Palette.md`](../01-Design/Art-Direction-and-Color-Palette.md) and [`../01-Design/Environment-Zones-and-Roadside-Composition.md`](../01-Design/Environment-Zones-and-Roadside-Composition.md).
 
 Runtime asset layout should converge on:
 
@@ -288,48 +452,49 @@ WebGame/public/assets/
 └── audio/
 ```
 
-Source art files must not be mixed into runtime folders.
+Source art files must not be mixed into runtime folders. Do not create zone-specific top-level runtime directories while the shared inventory remains small.
 
-Implementation should expose the `Night Courier 20` master colors as named constants/tokens rather than scattering ad-hoc hex values through rendering/HUD code. This is especially important for procedural road colors and semantic HUD states.
+Implementation should expose the `Night Courier 20` master colors as named constants/tokens rather than scattering ad-hoc hex values through rendering/HUD code. This is especially important for procedural road/tunnel colors and semantic HUD states.
 
 Do not add runtime palette-management architecture, shader-based palette swapping, custom asset databases or an asset validation framework unless production evidence demonstrates a need. A small typed/static token map and straightforward Phaser preload manifest are sufficient for the initial game.
 
 ### Sprite/runtime rules
 
 - player, traffic and roadside props use authored sprites;
-- road geometry, lane lines, simple HUD bars/text and basic screen effects stay procedural;
+- road geometry, lane lines, simple tunnel enclosure, simple HUD bars/text and basic screen effects stay procedural;
 - vehicle and ground-standing prop pivots should be bottom-centered around their road/ground contact point;
 - transparent padding must remain predictable across variants;
 - directional props should be flipped at runtime where visually valid rather than duplicated;
 - individual files are preferred while art is changing; atlasing is deferred until asset churn decreases or profiling/package evidence justifies it.
 
-## 17. Pixel-art rendering constraints
+## 18. Pixel-art rendering constraints
 
 - use nearest-neighbor filtering for pixel sprites;
 - preserve consistent apparent pixel density between player, traffic, props and HUD;
 - avoid accidental anti-aliasing on final sprite assets;
 - avoid high-frequency subpixel movement on the hero vehicle and HUD where it causes shimmer;
 - prefer integer-aligned UI placement where practical;
-- procedural road rendering may use vector/polygon geometry, but its colors must remain inside the approved visual system;
+- procedural road/tunnel rendering may use vector/polygon geometry, but its colors must remain inside the approved visual system;
 - projected sprite scaling must preserve readable silhouettes and avoid unnecessary fractional-size oscillation where it produces visible shimmer.
 
-## 18. Performance principles
+## 19. Performance principles
 
 - one WebView/game instance at a time;
 - avoid unnecessary allocations in the frame loop;
 - reuse projection/segment storage rather than creating transient objects per visible segment per frame;
 - recycle traffic objects rather than continuously constructing/destroying them;
+- derive deterministic ambient prop placement without rebuilding a large object graph every frame;
 - limit visible road segments and prop density to what the target display can resolve;
 - use logical resolution scaling rather than rendering at device-native resolution;
-- avoid loading unused concept/source assets into the runtime build;
+- avoid loading unused zone/concept/source assets into the runtime build;
 - profile target mobile hardware before adding optimization abstractions.
 
-## 19. External research policy
+## 20. External research policy
 
 Pseudo-3D road research is documented in [`Pseudo-3D-Road-Research-Notes.md`](Pseudo-3D-Road-Research-Notes.md).
 
 External examples are used only to understand concepts, constraints and algorithms. Night Courier does not adopt their source organization, identifiers, helper APIs, constants, asset content or demo-specific implementation restrictions. The production implementation must be written independently for the project's Phaser/TypeScript architecture.
 
-## 20. Error handling
+## 21. Error handling
 
 Recoverable host errors should produce a controlled result/error message. Fatal asset/runtime initialization failures should display a minimal error state and allow exit instead of leaving a frozen canvas.
