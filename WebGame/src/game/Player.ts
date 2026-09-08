@@ -11,6 +11,7 @@ const MAX_ROAD_X = 1.8;
 export class Player {
   speed = 0;
   roadX = 0;
+  cargoHealth = 100;
 
   get maxSpeed(): number {
     return MAX_SPEED;
@@ -35,6 +36,16 @@ export class Player {
     this.roadX += input.steer * STEER_RATE * steeringAuthority * dt;
     this.roadX -= roadCurve * CURVE_DRIFT_RATE * speedRatio * dt;
     this.roadX = clamp(this.roadX, -MAX_ROAD_X, MAX_ROAD_X);
+  }
+
+  applyCollision(cargoDamage: number, speedRetention: number): void {
+    const safeDamage = Number.isFinite(cargoDamage) ? Math.max(0, cargoDamage) : 0;
+    const safeRetention = Number.isFinite(speedRetention)
+      ? clamp(speedRetention, 0, 1)
+      : 1;
+
+    this.speed *= safeRetention;
+    this.cargoHealth = clamp(this.cargoHealth - safeDamage, 0, 100);
   }
 }
 
