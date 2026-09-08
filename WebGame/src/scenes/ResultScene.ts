@@ -25,7 +25,7 @@ export class ResultScene extends Phaser.Scene {
     );
 
     this.add
-      .text(centerX, centerY - 92, completed ? 'DELIVERY COMPLETE' : 'TIME EXPIRED', {
+      .text(centerX, centerY - 145, completed ? 'DELIVERY COMPLETE' : 'TIME EXPIRED', {
         fontFamily: 'monospace',
         fontSize: '38px',
         color: completed ? '#f5f7ff' : '#e56b6f',
@@ -35,24 +35,29 @@ export class ResultScene extends Phaser.Scene {
     this.add
       .text(
         centerX,
-        centerY - 12,
+        centerY - 25,
         [
-          `ELAPSED    ${this.result.elapsedSeconds.toFixed(1)}s`,
-          `TIME LEFT  ${this.result.timeRemaining.toFixed(1)}s`,
-          `ROUTE      ${routePercent.toFixed(1)}%`,
+          `SCORE       ${this.result.score.toString().padStart(6, '0')}`,
+          `CARGO       ${Math.round(this.result.cargoHealth).toString().padStart(3, ' ')}%`,
+          `NEAR MISS   ${this.result.nearMisses}`,
+          `BEST COMBO  x${this.result.bestCombo}`,
+          `COLLISIONS  ${this.result.collisionCount}`,
+          `ELAPSED     ${this.result.elapsedSeconds.toFixed(1)}s`,
+          `TIME LEFT   ${this.result.timeRemaining.toFixed(1)}s`,
+          `ROUTE       ${routePercent.toFixed(1)}%`,
         ],
         {
           align: 'left',
           fontFamily: 'monospace',
-          fontSize: '20px',
+          fontSize: '18px',
           color: '#d7dced',
-          lineSpacing: 8,
+          lineSpacing: 6,
         },
       )
       .setOrigin(0.5);
 
     this.add
-      .text(centerX, centerY + 100, 'Press Enter / R or tap to run again', {
+      .text(centerX, centerY + 170, 'Press Enter / R or tap to run again', {
         fontFamily: 'monospace',
         fontSize: '17px',
         color: '#aeb7d0',
