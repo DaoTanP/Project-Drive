@@ -1,0 +1,120 @@
+name: M2 Lifecycle Smoke
+
+on:
+  push:
+    branches:
+      - feat/m2-run-lifecycle
+    paths:
+      - 'WebGame/**'
+      - '.github/workflows/m2-lifecycle-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  lifecycle:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.12.0'
+          package-manager-cache: false
+
+      - name: Build and install temporary test drivers
+        working-directory: WebGame
+        run: |
+          npm ci
+          npm run build
+          npm install --no-save --package-lock=false puppeteer-core@24.16.0 tsx@4.20.5
+
+      - name: Verify GameState terminal rules
+        working-directory: WebGame
+        run: |
+          cat > .m2-state-smoke.ts <<'TS'
+          import assert from 'node:assert/strict';
+          import { advanceGameState, createGameState, createRunResult } from './src/game/GameState';
+
+          const completed = createGameState({ timeLimitSeconds: 1, destinationDistance: 10 });
+          advanceGameState(completed, 1, 10);
+          assert.equal(completed.outcome, 'completed');
+          assert.equal(completed.timeRemaining, 0);
+          assert.equal(createRunResult(completed).outcome, 'completed');
+
+          const timeout = createGameState({ timeLimitSeconds: 1, destinationDistance: 10 });
+          advanceGameState(timeout, 1, 0);
+          assert.equal(timeout.outcome, 'timeout');
+          assert.equal(timeout.routeDistance, 0);
+
+          const monotonic = createGameState({ timeLimitSeconds: 10, destinationDistance: 100 });
+          advanceGameState(monotonic, 1, 20);
+          advanceGameState(monotonic, 1, -50);
+          assert.equal(monotonic.routeDistance, 20);
+          TS
+          ./node_modules/.bin/tsx .m2-state-smoke.ts
+          rm .m2-state-smoke.ts
+
+      - name: Exercise timeout, restart and completion paths
+        run: |
+          python3 -m http.server 4173 --directory WebGame/dist >/tmp/night-courier-m2-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          for attempt in {1..10}; do
+            if curl --fail --silent http://127.0.0.1:4173/ >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          cd WebGame
+          node --input-type=module <<'NODE'
+          import puppeteer from 'puppeteer-core';
+          import fs from 'node:fs';
+
+          const browser = await puppeteer.launch({
+            executablePath: '/usr/bin/google-chrome',
+            headless: true,
+            args: ['--no-sandbox', '--disable-gpu'],
+          });
+          const page = await browser.newPage();
+          await page.setViewport({ width: 960, height: 540, deviceScaleFactor: 1 });
+          await page.goto('http://127.0.0.1:4173/', { waitUntil: 'domcontentloaded' });
+          await page.waitForSelector('canvas', { timeout: 10000 });
+          await new Promise((resolve) => setTimeout(resolve, 600));
+          await page.screenshot({ path: '/tmp/m2-00-start.png' });
+
+          await new Promise((resolve) => setTimeout(resolve, 31000));
+          await page.screenshot({ path: '/tmp/m2-01-timeout.png' });
+
+          await page.keyboard.press('KeyR');
+          await new Promise((resolve) => setTimeout(resolve, 700));
+          await page.screenshot({ path: '/tmp/m2-02-restart.png' });
+
+          await page.keyboard.down('ArrowUp');
+          await new Promise((resolve) => setTimeout(resolve, 25000));
+          await page.keyboard.up('ArrowUp');
+          await page.screenshot({ path: '/tmp/m2-03-completed.png' });
+
+          await browser.close();
+
+          for (const path of [
+            '/tmp/m2-00-start.png',
+            '/tmp/m2-01-timeout.png',
+            '/tmp/m2-02-restart.png',
+            '/tmp/m2-03-completed.png',
+          ]) {
+            if (!fs.existsSync(path) || fs.statSync(path).size === 0) {
+              throw new Error(`Missing screenshot: ${path}`);
+            }
+          }
+          NODE
+
+      - name: Upload lifecycle screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: night-courier-m2-lifecycle
+          path: /tmp/m2-*.png
+          if-no-files-found: error
