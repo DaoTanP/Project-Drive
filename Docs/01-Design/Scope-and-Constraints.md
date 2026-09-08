@@ -15,6 +15,7 @@ Night Courier is intentionally scoped as a **single-session arcade minigame**, n
 - near-miss combo scoring;
 - timer and game-over condition;
 - one route split;
+- five route-presentation zones within one environment family: `city`, `rural`, `forest`, `mountain-pass`, `tunnel`;
 - result screen;
 - keyboard and touch input;
 - offline packaging;
@@ -25,7 +26,8 @@ Night Courier is intentionally scoped as a **single-session arcade minigame**, n
 ### Should ship
 - gamepad input;
 - small impact VFX / screen shake;
-- traffic/roadside visual variation;
+- deterministic traffic/roadside visual variation;
+- clearly readable transitions between the five approved environment zones;
 - rank grade on result screen;
 - pause/resume propagation from Unity.
 
@@ -35,8 +37,9 @@ Night Courier is intentionally scoped as a **single-session arcade minigame**, n
 - multiple cargo types;
 - checkpoint time extensions;
 - richer route graph;
+- additional biome/environment families beyond the five approved route zones;
 - content data files separated from TypeScript;
-- dedicated HUD/audio subsystems.
+- dedicated HUD/audio/environment subsystems.
 
 ## Technical constraints
 
@@ -49,6 +52,7 @@ Night Courier is intentionally scoped as a **single-session arcade minigame**, n
 - No external physics engine.
 - No React or DOM application framework.
 - No ECS.
+- No separate scene/renderer/gameplay system per environment zone.
 - Initial TypeScript gameplay code target: approximately 12 source files.
 
 ## Complexity budget
@@ -63,16 +67,52 @@ New abstractions require a demonstrated reason such as:
 
 Anticipated future flexibility alone is not sufficient justification.
 
+The five environment zones do not, by themselves, justify `BiomeManager`, `EnvironmentSystem`, procedural-world grammar, 3D terrain, per-zone scenes or per-zone vehicle rules.
+
 ## Content budget
 
 Initial production should remain within:
 
 - 1 player car;
-- 3 traffic silhouettes/variants;
-- 1 environment family;
-- 10–15 roadside props;
+- 3 traffic behavior classes / approximately 4–6 traffic images;
+- 1 coherent Japanese-night environment family expressed through 5 presentation zones;
+- approximately 15–18 reusable roadside/environment props shared across zones;
+- approximately 5–7 background/parallax images shared across zones;
 - 1 music track;
 - ~8 SFX;
 - 1 run with 1 branch.
 
-If content production exceeds this before the core loop is validated, content work should stop and gameplay validation should resume.
+The normal total visual budget is approximately **38–53 unique runtime images** / **49–74 frames/images including variants**.
+
+If content production exceeds this before the core loop and zone readability are validated, content work should stop and gameplay/composition validation should resume.
+
+## Environment scope guardrail
+
+Approved zone set:
+
+```text
+city
+rural
+forest
+mountain-pass
+tunnel
+```
+
+These are presentation profiles over shared systems/assets. They may vary:
+
+- prop pool/density/spacing;
+- background/parallax selection;
+- practical-lighting pattern;
+- authored curve/elevation tendencies;
+- simple procedural tunnel enclosure.
+
+They must not introduce:
+
+- unique handling/physics;
+- zone-specific traffic AI classes;
+- independent biome asset packs;
+- weather variants;
+- full 3D terrain/building simulation;
+- runtime scene loading per zone.
+
+Detailed composition rules are authoritative in [`Environment-Zones-and-Roadside-Composition.md`](Environment-Zones-and-Roadside-Composition.md).
