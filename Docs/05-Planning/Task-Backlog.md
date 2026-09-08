@@ -43,13 +43,17 @@ Do not add during M1:
 
 ## M2 — Run lifecycle
 
-- [ ] M2.1 Add `GameState` initialization.
-- [ ] M2.2 Track world/route progress.
-- [ ] M2.3 Add run timer.
-- [ ] M2.4 Add destination completion condition.
-- [ ] M2.5 Add timeout failure condition.
-- [ ] M2.6 Implement ResultScene summary.
-- [ ] M2.7 Implement standalone restart.
+**Status:** implementation, pure lifecycle-rule validation and production-browser timeout/restart/completion smoke validation complete. Final route duration remains explicitly deferred to M4.
+
+- [x] M2.1 Add `GameState` initialization.
+- [x] M2.2 Track world/route progress.
+- [x] M2.3 Add run timer.
+- [x] M2.4 Add destination completion condition.
+- [x] M2.5 Add timeout failure condition.
+- [x] M2.6 Implement ResultScene summary.
+- [x] M2.7 Implement standalone restart.
+
+M2 uses a temporary 30-second / 60%-of-demo-road validation run only. It does not change the design target of a 4–5 minute final run.
 
 ## M3 — Traffic / cargo / scoring
 

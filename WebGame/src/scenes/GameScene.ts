@@ -1,5 +1,11 @@
 import Phaser from 'phaser';
 
+import {
+  advanceGameState,
+  createGameState,
+  createRunResult,
+  type GameState,
+} from '../game/GameState';
 import { InputController } from '../game/Input';
 import { Player } from '../game/Player';
 import { Road } from '../game/Road';
@@ -7,27 +13,38 @@ import { Road } from '../game/Road';
 const FIXED_STEP = 1 / 60;
 const MAX_FRAME_DELTA = 0.15;
 const MAX_CATCH_UP_STEPS = 5;
-const INITIAL_TRACK_POSITION = 1200;
+const INITIAL_ROAD_POSITION = 1200;
+const M2_TIME_LIMIT_SECONDS = 30;
+const M2_DESTINATION_FRACTION = 0.6;
 
 export class GameScene extends Phaser.Scene {
   private road!: Road;
   private player!: Player;
   private controls!: InputController;
+  private runState!: GameState;
   private roadGraphics!: Phaser.GameObjects.Graphics;
   private playerGraphics!: Phaser.GameObjects.Graphics;
   private hudText!: Phaser.GameObjects.Text;
   private accumulator = 0;
-  private trackPosition = INITIAL_TRACK_POSITION;
   private lastSteer = 0;
+  private transitionStarted = false;
 
   constructor() {
     super('Game');
   }
 
   create(): void {
+    this.accumulator = 0;
+    this.lastSteer = 0;
+    this.transitionStarted = false;
+
     this.road = new Road();
     this.player = new Player();
     this.controls = new InputController(this);
+    this.runState = createGameState({
+      timeLimitSeconds: M2_TIME_LIMIT_SECONDS,
+      destinationDistance: this.road.trackLength * M2_DESTINATION_FRACTION,
+    });
 
     this.roadGraphics = this.add.graphics().setDepth(0);
     this.playerGraphics = this.add.graphics().setDepth(10);
@@ -41,7 +58,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(20);
 
     this.add
-      .text(this.scale.width - 20, 18, 'M1 ROAD / PLAYER SLICE\nARROWS or WASD', {
+      .text(this.scale.width - 20, 18, 'M2 COMPLETE RUN\nARROWS or WASD', {
         align: 'right',
         fontFamily: 'monospace',
         fontSize: '14px',
@@ -55,6 +72,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(_time: number, deltaMs: number): void {
+    if (this.transitionStarted) {
+      return;
+    }
+
     const frameDelta = Math.min(Math.max(deltaMs / 1000, 0), MAX_FRAME_DELTA);
     const input = this.controls.sample();
 
@@ -64,30 +85,52 @@ export class GameScene extends Phaser.Scene {
     let simulationSteps = 0;
 
     while (this.accumulator >= FIXED_STEP && simulationSteps < MAX_CATCH_UP_STEPS) {
-      const roadCurve = this.road.curveAt(this.trackPosition);
+      const roadPosition = this.currentRoadPosition();
+      const roadCurve = this.road.curveAt(roadPosition);
 
       this.player.update(input, FIXED_STEP, roadCurve);
-      this.trackPosition = this.road.wrapPosition(
-        this.trackPosition + this.player.speed * FIXED_STEP,
-      );
+      advanceGameState(this.runState, FIXED_STEP, this.player.speed * FIXED_STEP);
 
       this.accumulator -= FIXED_STEP;
       simulationSteps += 1;
+
+      if (this.runState.finished) {
+        break;
+      }
     }
 
     if (simulationSteps === MAX_CATCH_UP_STEPS && this.accumulator >= FIXED_STEP) {
       this.accumulator = 0;
     }
 
+    if (this.runState.finished) {
+      this.finishRun();
+      return;
+    }
+
     this.renderFrame();
+  }
+
+  private currentRoadPosition(): number {
+    return INITIAL_ROAD_POSITION + this.runState.routeDistance;
+  }
+
+  private finishRun(): void {
+    if (this.transitionStarted) {
+      return;
+    }
+
+    this.transitionStarted = true;
+    this.scene.start('Result', createRunResult(this.runState));
   }
 
   private renderFrame(): void {
     const width = this.scale.width;
     const height = this.scale.height;
+    const roadPosition = this.currentRoadPosition();
 
     this.road.render(this.roadGraphics, {
-      playerPosition: this.trackPosition,
+      playerPosition: roadPosition,
       playerRoadX: this.player.roadX,
       viewportWidth: width,
       viewportHeight: height,
@@ -96,13 +139,15 @@ export class GameScene extends Phaser.Scene {
     this.drawPlayerPlaceholder(width, height);
 
     const speedKph = Math.round((this.player.speed / this.player.maxSpeed) * 180);
-    const trackPercent = (this.trackPosition / this.road.trackLength) * 100;
+    const routePercent =
+      (this.runState.routeDistance / this.runState.destinationDistance) * 100;
 
     this.hudText.setText([
+      `TIME   ${formatClock(this.runState.timeRemaining)}`,
       `SPEED  ${speedKph.toString().padStart(3, '0')} km/h`,
+      `ROUTE  ${routePercent.toFixed(1).padStart(5, ' ')}%`,
       `ROAD X ${this.player.roadX.toFixed(2)}`,
-      `TRACK  ${trackPercent.toFixed(1)}%`,
-      `SEG    ${this.road.segmentIndexAt(this.trackPosition)}`,
+      `SEG    ${this.road.segmentIndexAt(roadPosition)}`,
     ]);
   }
 
@@ -129,4 +174,14 @@ export class GameScene extends Phaser.Scene {
     graphics.fillRect(-22, 8, 8, 4);
     graphics.fillRect(14, 8, 8, 4);
   }
+}
+
+function formatClock(seconds: number): string {
+  const safeSeconds = Math.max(0, seconds);
+  const minutes = Math.floor(safeSeconds / 60);
+  const wholeSeconds = Math.floor(safeSeconds % 60);
+
+  return `${minutes.toString().padStart(2, '0')}:${wholeSeconds
+    .toString()
+    .padStart(2, '0')}`;
 }
