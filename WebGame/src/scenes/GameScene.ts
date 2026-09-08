@@ -4,7 +4,9 @@ import {
   advanceGameState,
   createGameState,
   createRunResult,
+  setDestinationDistance,
   type GameState,
+  type RouteBranch,
 } from '../game/GameState';
 import { InputController } from '../game/Input';
 import { Player } from '../game/Player';
@@ -15,9 +17,9 @@ import { Traffic } from '../game/Traffic';
 const FIXED_STEP = 1 / 60;
 const MAX_FRAME_DELTA = 0.15;
 const MAX_CATCH_UP_STEPS = 5;
-const INITIAL_ROAD_POSITION = 1200;
-const REPRESENTATIVE_TIME_LIMIT_SECONDS = 30;
-const REPRESENTATIVE_DESTINATION_FRACTION = 0.6;
+const RUN_TIME_LIMIT_SECONDS = 300;
+const RISKY_TRAFFIC_GAP_SCALE = 0.82;
+const SAFE_TRAFFIC_GAP_SCALE = 1.15;
 
 export class GameScene extends Phaser.Scene {
   private road!: Road;
@@ -30,8 +32,11 @@ export class GameScene extends Phaser.Scene {
   private trafficGraphics!: Phaser.GameObjects.Graphics;
   private playerGraphics!: Phaser.GameObjects.Graphics;
   private hudText!: Phaser.GameObjects.Text;
+  private routePromptText!: Phaser.GameObjects.Text;
   private accumulator = 0;
   private lastSteer = 0;
+  private routeChoice: RouteBranch | null = null;
+  private routeChoiceNoticeUntil = 0;
   private transitionStarted = false;
 
   constructor() {
@@ -41,6 +46,8 @@ export class GameScene extends Phaser.Scene {
   create(): void {
     this.accumulator = 0;
     this.lastSteer = 0;
+    this.routeChoice = null;
+    this.routeChoiceNoticeUntil = 0;
     this.transitionStarted = false;
 
     this.road = new Road();
@@ -49,8 +56,8 @@ export class GameScene extends Phaser.Scene {
     this.scoring = new Scoring();
     this.controls = new InputController(this);
     this.runState = createGameState({
-      timeLimitSeconds: REPRESENTATIVE_TIME_LIMIT_SECONDS,
-      destinationDistance: this.road.trackLength * REPRESENTATIVE_DESTINATION_FRACTION,
+      timeLimitSeconds: RUN_TIME_LIMIT_SECONDS,
+      destinationDistance: this.road.destinationDistance,
     });
 
     this.roadGraphics = this.add.graphics().setDepth(0);
@@ -65,8 +72,21 @@ export class GameScene extends Phaser.Scene {
       })
       .setDepth(20);
 
+    this.routePromptText = this.add
+      .text(this.scale.width * 0.5, 28, '', {
+        align: 'center',
+        fontFamily: 'monospace',
+        fontSize: '16px',
+        color: '#f5f3ea',
+        backgroundColor: '#080c18cc',
+        padding: { x: 12, y: 8 },
+        lineSpacing: 4,
+      })
+      .setOrigin(0.5, 0)
+      .setDepth(30);
+
     this.add
-      .text(this.scale.width - 20, 18, 'M3 TRAFFIC / RISK\nARROWS or WASD', {
+      .text(this.scale.width - 20, 18, 'M4 FINAL ROUTE\nARROWS or WASD', {
         align: 'right',
         fontFamily: 'monospace',
         fontSize: '14px',
@@ -80,20 +100,18 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(_time: number, deltaMs: number): void {
-    if (this.transitionStarted) {
-      return;
-    }
+    if (this.transitionStarted) return;
 
     const frameDelta = Math.min(Math.max(deltaMs / 1000, 0), MAX_FRAME_DELTA);
     const input = this.controls.sample();
-
     this.lastSteer = input.steer;
     this.accumulator += frameDelta;
 
     let simulationSteps = 0;
-
     while (this.accumulator >= FIXED_STEP && simulationSteps < MAX_CATCH_UP_STEPS) {
-      const roadPosition = this.currentRoadPosition();
+      this.resolveRouteChoice(input.steer);
+
+      const roadPosition = this.road.positionForRouteDistance(this.runState.routeDistance);
       const roadCurve = this.road.curveAt(roadPosition);
       const previousRouteDistance = this.runState.routeDistance;
 
@@ -110,15 +128,11 @@ export class GameScene extends Phaser.Scene {
       if (trafficStep.collisions > 0) {
         this.player.applyCollision(trafficStep.cargoDamage, trafficStep.speedRetention);
       }
-
       this.scoring.applyStep(trafficStep.nearMisses, trafficStep.collisions);
 
       this.accumulator -= FIXED_STEP;
       simulationSteps += 1;
-
-      if (this.runState.finished) {
-        break;
-      }
+      if (this.runState.finished) break;
     }
 
     if (simulationSteps === MAX_CATCH_UP_STEPS && this.accumulator >= FIXED_STEP) {
@@ -133,26 +147,63 @@ export class GameScene extends Phaser.Scene {
     this.renderFrame();
   }
 
-  private currentRoadPosition(): number {
-    return INITIAL_ROAD_POSITION + this.runState.routeDistance;
-  }
+  private resolveRouteChoice(steer: number): void {
+    if (this.routeChoice !== null) return;
 
-  private finishRun(): void {
-    if (this.transitionStarted) {
+    const distance = this.runState.routeDistance;
+    if (distance < this.road.branchPromptStartDistance) return;
+
+    if (steer <= -0.35) {
+      this.chooseRoute('risky');
       return;
     }
 
-    const score = this.scoring.snapshot();
+    if (steer >= 0.35) {
+      this.chooseRoute('safe');
+      return;
+    }
+
+    if (distance >= this.road.branchDecisionDistance) {
+      this.chooseRoute('safe');
+    }
+  }
+
+  private chooseRoute(branch: RouteBranch): void {
+    this.routeChoice = branch;
+    this.road.selectBranch(branch);
+    setDestinationDistance(this.runState, this.road.destinationDistance);
+    this.traffic.setGapScale(
+      branch === 'risky' ? RISKY_TRAFFIC_GAP_SCALE : SAFE_TRAFFIC_GAP_SCALE,
+    );
+    this.routeChoiceNoticeUntil = this.runState.elapsedSeconds + 3;
+  }
+
+  private finishRun(): void {
+    if (this.transitionStarted) return;
+    const outcome = this.runState.outcome;
+    if (outcome === null) return;
+
+    const driving = this.scoring.snapshot();
+    const final = this.scoring.finalize(
+      outcome,
+      this.runState.timeRemaining,
+      this.player.cargoHealth,
+    );
 
     this.transitionStarted = true;
     this.scene.start(
       'Result',
       createRunResult(this.runState, {
-        score: score.score,
+        score: final.score,
+        drivingScore: final.drivingScore,
+        timeBonus: final.timeBonus,
+        cargoBonus: final.cargoBonus,
+        rank: final.rank,
+        branch: this.routeChoice,
         cargoHealth: this.player.cargoHealth,
-        nearMisses: score.nearMisses,
-        collisionCount: score.collisionCount,
-        bestCombo: score.bestCombo,
+        nearMisses: driving.nearMisses,
+        collisionCount: driving.collisionCount,
+        bestCombo: driving.bestCombo,
       }),
     );
   }
@@ -160,7 +211,8 @@ export class GameScene extends Phaser.Scene {
   private renderFrame(): void {
     const width = this.scale.width;
     const height = this.scale.height;
-    const roadPosition = this.currentRoadPosition();
+    const roadPosition = this.road.positionForRouteDistance(this.runState.routeDistance);
+    const zone = this.road.zoneAtRouteDistance(this.runState.routeDistance);
 
     this.road.render(this.roadGraphics, {
       playerPosition: roadPosition,
@@ -170,29 +222,59 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.traffic.render(this.trafficGraphics, this.road, {
-      roadPositionOffset: INITIAL_ROAD_POSITION,
+      roadPositionOffset: this.road.startPosition,
       playerRouteDistance: this.runState.routeDistance,
     });
 
     this.drawPlayerPlaceholder(width, height);
+    this.updateRoutePrompt();
 
     const speedKph = Math.round((this.player.speed / this.player.maxSpeed) * 180);
     const routePercent =
       (this.runState.routeDistance / this.runState.destinationDistance) * 100;
 
     this.hudText.setText([
-      `TIME   ${formatClock(this.runState.timeRemaining)}`,
-      `SPEED  ${speedKph.toString().padStart(3, '0')} km/h`,
-      `SCORE  ${this.scoring.score.toString().padStart(6, '0')}`,
-      `CARGO  ${Math.round(this.player.cargoHealth).toString().padStart(3, ' ')}%`,
-      `COMBO  x${this.scoring.combo}`,
-      `ROUTE  ${routePercent.toFixed(1).padStart(5, ' ')}%`,
+      `TIME    ${formatClock(this.runState.timeRemaining)}`,
+      `SPEED   ${speedKph.toString().padStart(3, '0')} km/h`,
+      `SCORE   ${this.scoring.score.toString().padStart(6, '0')}`,
+      `CARGO   ${Math.round(this.player.cargoHealth).toString().padStart(3, ' ')}%`,
+      `COMBO   x${this.scoring.combo}`,
+      `ROUTE   ${routePercent.toFixed(1).padStart(5, ' ')}%`,
+      `ZONE    ${zone.toUpperCase()}`,
+      `BRANCH  ${(this.routeChoice ?? 'UNDECIDED').toUpperCase()}`,
     ]);
+  }
+
+  private updateRoutePrompt(): void {
+    if (
+      this.routeChoice === null &&
+      this.runState.routeDistance >= this.road.branchPromptStartDistance
+    ) {
+      this.routePromptText.setText([
+        'ROUTE CHOICE',
+        '← MOUNTAIN PASS / TUNNEL  SHORT + RISKY',
+        'FOREST / RURAL  LONG + SAFE →',
+      ]);
+      return;
+    }
+
+    if (
+      this.routeChoice !== null &&
+      this.runState.elapsedSeconds < this.routeChoiceNoticeUntil
+    ) {
+      this.routePromptText.setText(
+        this.routeChoice === 'risky'
+          ? 'RISKY ROUTE LOCKED\nMOUNTAIN PASS → TUNNEL'
+          : 'SAFE ROUTE LOCKED\nFOREST → RURAL',
+      );
+      return;
+    }
+
+    this.routePromptText.setText('');
   }
 
   private drawPlayerPlaceholder(width: number, height: number): void {
     const graphics = this.playerGraphics;
-
     graphics.clear();
     graphics.setPosition(width * 0.5, height * 0.84);
     graphics.setRotation(this.lastSteer * 0.035);
@@ -200,15 +282,12 @@ export class GameScene extends Phaser.Scene {
     graphics.fillStyle(0x10131b, 1);
     graphics.fillRect(-31, -9, 9, 22);
     graphics.fillRect(22, -9, 9, 22);
-
     graphics.fillStyle(0xe8c96d, 1);
     graphics.fillRect(-27, -15, 54, 30);
     graphics.fillTriangle(-19, -15, -10, -27, 10, -27);
     graphics.fillTriangle(-19, -15, 10, -27, 19, -15);
-
     graphics.fillStyle(0x9fc0c9, 1);
     graphics.fillRect(-10, -23, 20, 8);
-
     graphics.fillStyle(0xe56b6f, 1);
     graphics.fillRect(-22, 8, 8, 4);
     graphics.fillRect(14, 8, 8, 4);
@@ -219,8 +298,5 @@ function formatClock(seconds: number): string {
   const safeSeconds = Math.max(0, seconds);
   const minutes = Math.floor(safeSeconds / 60);
   const wholeSeconds = Math.floor(safeSeconds % 60);
-
-  return `${minutes.toString().padStart(2, '0')}:${wholeSeconds
-    .toString()
-    .padStart(2, '0')}`;
+  return `${minutes.toString().padStart(2, '0')}:${wholeSeconds.toString().padStart(2, '0')}`;
 }

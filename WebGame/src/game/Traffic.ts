@@ -45,7 +45,7 @@ const INITIAL_SPAWN_DISTANCE = 4200;
 const INITIAL_SPACING = 4200;
 const RECYCLE_GAPS = [3600, 4400, 4000, 5000] as const;
 
-const TRAFFIC_TUNING: Record<TrafficType, TrafficTuning> = {
+const TUNING: Record<TrafficType, TrafficTuning> = {
   car: {
     speed: 1120,
     collisionLateral: 0.28,
@@ -78,7 +78,7 @@ const TRAFFIC_TUNING: Record<TrafficType, TrafficTuning> = {
   },
 };
 
-const SPAWN_PATTERN: readonly { type: TrafficType; roadX: number }[] = [
+const PATTERN: readonly { type: TrafficType; roadX: number }[] = [
   { type: 'car', roadX: -0.52 },
   { type: 'van', roadX: 0.12 },
   { type: 'truck', roadX: 0.64 },
@@ -101,17 +101,18 @@ export class Traffic {
     speedRetention: 1,
     nearMisses: 0,
   };
-  private recyclePatternIndex = SPAWN_PATTERN.length;
+  private recyclePatternIndex = PATTERN.length;
   private recycleGapIndex = 0;
+  private gapScale = 1;
 
   constructor() {
-    this.cars = SPAWN_PATTERN.map((spawn, index) =>
-      createTrafficCar(
-        spawn.type,
-        spawn.roadX,
-        INITIAL_SPAWN_DISTANCE + index * INITIAL_SPACING,
-      ),
+    this.cars = PATTERN.map((spawn, index) =>
+      createCar(spawn.type, spawn.roadX, INITIAL_SPAWN_DISTANCE + index * INITIAL_SPACING),
     );
+  }
+
+  setGapScale(scale: number): void {
+    this.gapScale = Number.isFinite(scale) ? clamp(scale, 0.65, 1.5) : 1;
   }
 
   update(
@@ -122,7 +123,6 @@ export class Traffic {
   ): TrafficStepResult {
     const safeDt = Number.isFinite(dt) ? Math.max(0, dt) : 0;
     const result = this.stepResult;
-
     result.collisions = 0;
     result.cargoDamage = 0;
     result.speedRetention = 1;
@@ -133,46 +133,37 @@ export class Traffic {
     for (const car of this.cars) {
       const previousZ = car.z;
       car.z += car.speed * safeDt;
-
       const relativeBefore = previousZ - playerPreviousDistance;
       const relativeAfter = car.z - playerCurrentDistance;
-      const lateralDistance = Math.abs(playerRoadX - car.roadX);
-      const tuning = TRAFFIC_TUNING[car.type];
-      const sweptDistance = sweptAbsoluteMinimum(relativeBefore, relativeAfter);
+      const tuning = TUNING[car.type];
+      const lateral = Math.abs(playerRoadX - car.roadX);
+      const swept = sweptAbsoluteMinimum(relativeBefore, relativeAfter);
 
       if (!car.passResolved) {
-        if (
-          sweptDistance <= COLLISION_LONGITUDINAL &&
-          lateralDistance <= tuning.collisionLateral
-        ) {
+        if (swept <= COLLISION_LONGITUDINAL && lateral <= tuning.collisionLateral) {
           car.passResolved = true;
           result.collisions += 1;
           result.cargoDamage += tuning.cargoDamage;
           result.speedRetention = Math.min(result.speedRetention, tuning.speedRetention);
         } else {
-          const nearMissLateral = tuning.collisionLateral + NEAR_MISS_LATERAL_MARGIN;
-
           if (
-            sweptDistance <= NEAR_MISS_LONGITUDINAL &&
-            lateralDistance > tuning.collisionLateral &&
-            lateralDistance <= nearMissLateral
+            swept <= NEAR_MISS_LONGITUDINAL &&
+            lateral > tuning.collisionLateral &&
+            lateral <= tuning.collisionLateral + NEAR_MISS_LATERAL_MARGIN
           ) {
             car.nearMissArmed = true;
           }
 
           if (relativeBefore > 0 && relativeAfter <= 0) {
-            if (car.nearMissArmed) {
-              result.nearMisses += 1;
-            }
-
+            if (car.nearMissArmed) result.nearMisses += 1;
             car.passResolved = true;
           }
         }
       }
 
       if (relativeAfter < -RECYCLE_BEHIND_DISTANCE) {
-        spawnCursor += this.nextRecycleGap();
-        this.recycleCar(car, spawnCursor);
+        spawnCursor += this.nextGap();
+        this.recycle(car, spawnCursor);
       }
     }
 
@@ -185,106 +176,69 @@ export class Traffic {
     view: TrafficRenderView,
   ): void {
     graphics.clear();
-
     this.cars.sort((left, right) => right.z - left.z);
 
     for (const car of this.cars) {
-      if (car.z < view.playerRouteDistance - RECYCLE_BEHIND_DISTANCE) {
-        continue;
+      if (car.z < view.playerRouteDistance - RECYCLE_BEHIND_DISTANCE) continue;
+      if (
+        road.projectObject(view.roadPositionOffset + car.z, car.roadX, car.projection)
+      ) {
+        drawCar(graphics, car);
       }
-
-      const projected = road.projectObject(
-        view.roadPositionOffset + car.z,
-        car.roadX,
-        car.projection,
-      );
-
-      if (!projected) {
-        continue;
-      }
-
-      drawTrafficPlaceholder(graphics, car);
     }
   }
 
-  private nextRecycleGap(): number {
-    const gap = RECYCLE_GAPS[this.recycleGapIndex % RECYCLE_GAPS.length];
+  private nextGap(): number {
+    const base = RECYCLE_GAPS[this.recycleGapIndex % RECYCLE_GAPS.length];
     this.recycleGapIndex += 1;
-    return gap;
+    return base * this.gapScale;
   }
 
-  private recycleCar(car: TrafficCar, z: number): void {
-    const spawn = SPAWN_PATTERN[this.recyclePatternIndex % SPAWN_PATTERN.length];
-    const tuning = TRAFFIC_TUNING[spawn.type];
-
+  private recycle(car: TrafficCar, z: number): void {
+    const spawn = PATTERN[this.recyclePatternIndex % PATTERN.length];
     this.recyclePatternIndex += 1;
     car.type = spawn.type;
     car.roadX = spawn.roadX;
     car.z = z;
-    car.speed = tuning.speed;
+    car.speed = TUNING[spawn.type].speed;
     car.nearMissArmed = false;
     car.passResolved = false;
   }
 }
 
-function createTrafficCar(type: TrafficType, roadX: number, z: number): TrafficCar {
+function createCar(type: TrafficType, roadX: number, z: number): TrafficCar {
   return {
     type,
     roadX,
     z,
-    speed: TRAFFIC_TUNING[type].speed,
+    speed: TUNING[type].speed,
     nearMissArmed: false,
     passResolved: false,
-    projection: {
-      x: 0,
-      y: 0,
-      cameraZ: 0,
-      pixelsPerWorld: 0,
-      clipY: 0,
-    },
+    projection: { x: 0, y: 0, cameraZ: 0, pixelsPerWorld: 0, clipY: 0 },
   };
 }
 
-function sweptAbsoluteMinimum(start: number, end: number): number {
-  if (start === 0 || end === 0 || (start > 0 && end < 0) || (start < 0 && end > 0)) {
-    return 0;
-  }
+function drawCar(graphics: Phaser.GameObjects.Graphics, car: TrafficCar): void {
+  const tuning = TUNING[car.type];
+  const p = car.projection;
+  const width = tuning.worldWidth * p.pixelsPerWorld;
+  const height = tuning.worldHeight * p.pixelsPerWorld;
+  if (width < 2 || height < 3) return;
 
-  return Math.min(Math.abs(start), Math.abs(end));
-}
+  const left = p.x - width * 0.5;
+  const top = p.y - height;
+  const bottom = Math.min(p.y, p.clipY);
+  const visibleHeight = bottom - top;
+  if (visibleHeight <= 0) return;
 
-function drawTrafficPlaceholder(
-  graphics: Phaser.GameObjects.Graphics,
-  car: TrafficCar,
-): void {
-  const tuning = TRAFFIC_TUNING[car.type];
-  const projection = car.projection;
-  const width = tuning.worldWidth * projection.pixelsPerWorld;
-  const height = tuning.worldHeight * projection.pixelsPerWorld;
-
-  if (width < 2 || height < 3) {
-    return;
-  }
-
-  const left = projection.x - width * 0.5;
-  const top = projection.y - height;
-  const clippedBottom = Math.min(projection.y, projection.clipY);
-  const visibleHeight = clippedBottom - top;
-
-  if (visibleHeight <= 0) {
-    return;
-  }
-
-  const shadowTop = top + height * 0.72;
-  const shadowBottom = Math.min(clippedBottom, shadowTop + height * 0.2);
-
-  if (shadowBottom > shadowTop) {
+  if (bottom > top + height * 0.72) {
+    const shadowTop = top + height * 0.72;
     graphics.fillStyle(0x10131b, 0.9);
     graphics.fillRect(
       left - width * 0.04,
       shadowTop,
       width * 1.08,
-      shadowBottom - shadowTop,
+      Math.min(height * 0.2, bottom - shadowTop),
     );
   }
 
@@ -292,27 +246,25 @@ function drawTrafficPlaceholder(
   graphics.fillRect(left, top, width, visibleHeight);
 
   const windowTop = top + height * 0.18;
-  const windowBottom = Math.min(clippedBottom, top + height * 0.48);
-
+  const windowBottom = Math.min(bottom, top + height * 0.48);
   if (windowBottom > windowTop) {
     graphics.fillStyle(tuning.windowColor, 1);
-    graphics.fillRect(
-      left + width * 0.18,
-      windowTop,
-      width * 0.64,
-      windowBottom - windowTop,
-    );
+    graphics.fillRect(left + width * 0.18, windowTop, width * 0.64, windowBottom - windowTop);
   }
 
-  if (clippedBottom > top + height * 0.72) {
+  if (bottom > top + height * 0.72) {
     graphics.fillStyle(0xe8d79a, 1);
-    const lampSize = Math.max(1, width * 0.08);
-    graphics.fillRect(left + width * 0.12, clippedBottom - lampSize * 1.5, lampSize, lampSize);
-    graphics.fillRect(
-      left + width * 0.8,
-      clippedBottom - lampSize * 1.5,
-      lampSize,
-      lampSize,
-    );
+    const lamp = Math.max(1, width * 0.08);
+    graphics.fillRect(left + width * 0.12, bottom - lamp * 1.5, lamp, lamp);
+    graphics.fillRect(left + width * 0.8, bottom - lamp * 1.5, lamp, lamp);
   }
+}
+
+function sweptAbsoluteMinimum(start: number, end: number): number {
+  if (start === 0 || end === 0 || (start > 0 && end < 0) || (start < 0 && end > 0)) return 0;
+  return Math.min(Math.abs(start), Math.abs(end));
+}
+
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.min(maximum, Math.max(minimum, value));
 }

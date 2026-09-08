@@ -1,3 +1,5 @@
+import type { ResultRank, RunOutcome } from './GameState';
+
 export interface ScoreSummary {
   score: number;
   combo: number;
@@ -6,9 +8,19 @@ export interface ScoreSummary {
   collisionCount: number;
 }
 
+export interface FinalScoreSummary {
+  drivingScore: number;
+  timeBonus: number;
+  cargoBonus: number;
+  score: number;
+  rank: ResultRank;
+}
+
 const NEAR_MISS_BASE_SCORE = 250;
 const COLLISION_PENALTY = 150;
 const MAX_COMBO = 5;
+const TIME_BONUS_PER_SECOND = 25;
+const CARGO_BONUS_PER_PERCENT = 50;
 
 export class Scoring {
   score = 0;
@@ -35,6 +47,25 @@ export class Scoring {
     }
   }
 
+  finalize(outcome: RunOutcome, timeRemaining: number, cargoHealth: number): FinalScoreSummary {
+    const completed = outcome === 'completed';
+    const timeBonus = completed
+      ? Math.max(0, Math.floor(timeRemaining * TIME_BONUS_PER_SECOND))
+      : 0;
+    const cargoBonus = completed
+      ? Math.max(0, Math.floor(clamp(cargoHealth, 0, 100) * CARGO_BONUS_PER_PERCENT))
+      : 0;
+    const score = this.score + timeBonus + cargoBonus;
+
+    return {
+      drivingScore: this.score,
+      timeBonus,
+      cargoBonus,
+      score,
+      rank: completed ? rankForScore(score) : 'D',
+    };
+  }
+
   snapshot(): ScoreSummary {
     return {
       score: this.score,
@@ -44,4 +75,18 @@ export class Scoring {
       collisionCount: this.collisionCount,
     };
   }
+}
+
+export function rankForScore(score: number): ResultRank {
+  const safeScore = Math.max(0, Math.floor(score));
+  if (safeScore >= 18000) return 'S';
+  if (safeScore >= 13000) return 'A';
+  if (safeScore >= 9000) return 'B';
+  if (safeScore >= 6000) return 'C';
+  return 'D';
+}
+
+function clamp(value: number, minimum: number, maximum: number): number {
+  if (!Number.isFinite(value)) return minimum;
+  return Math.min(maximum, Math.max(minimum, value));
 }
