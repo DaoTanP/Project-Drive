@@ -112,16 +112,16 @@ Do not add during M4:
 
 M5 is executed in dependency slices defined by [`M5-Presentation-and-Production-Assets.md`](M5-Presentation-and-Production-Assets.md), with acceptance tracked in [`../06-Quality/M5-Presentation-Acceptance.md`](../06-Quality/M5-Presentation-Acceptance.md).
 
-**M5A status:** production foundation complete. Canonical palette tokens, pixel-art config, runtime asset tree, Boot preload/error boundary, landscape-only browser shell, touch-layout contract and five-state visual-steering contract are established and validated. Production touch controls, final HUD clipping validation and Batch A+ assets remain open.
+**M5A status:** production foundation complete. Canonical palette tokens, pixel-art config, runtime asset tree, Boot preload/error boundary, landscape-only browser shell, touch-layout contract and player visual-steering contract are established and validated. Production touch controls, final HUD clipping validation and Batch A+ assets remain open. Traffic production now additionally follows the `256 x 256` five-yaw contract in [`../01-Design/Traffic-Sprite-Angle-Specification.md`](../01-Design/Traffic-Sprite-Angle-Specification.md).
 
 - [ ] M5.1 Implement touch steering/throttle/brake controls.
 - [ ] M5.2 Verify orientation/aspect-ratio scaling behavior after production touch/HUD surfaces exist; M5A structural shell checks already cover 16:9, phone-wide, 4:3 and portrait fallback.
 - [ ] M5.3 Add optional gamepad mapping if it does not delay mobile completion.
 - [x] M5.4 Establish the `Night Courier 20` palette tokens in code/asset documentation before final sprite production.
 - [x] M5.5 Create runtime asset directories and lock naming/pivot conventions from `Asset-Inventory-and-Sprite-Requirements.md`.
-- [ ] M5.6 Produce/import Asset Batch A: five player steering poses, at least three traffic visuals, city far skyline and city mid/building strip.
-- [ ] M5.7 Map traffic visuals to the existing `car`/`van`/`truck` behavior classes without adding new AI types.
-- [ ] M5.8 Validate player and traffic readability against representative `city`, `forest`, `mountain-pass` and `tunnel` compositions at gameplay speed.
+- [ ] M5.6 Produce/import Asset Batch A: five `256 x 256` player steering poses, complete `256 x 256` five-yaw families for at least three traffic identities (standard target: taxi, hatchback, van, truck = 20 traffic frames), plus city far/mid backgrounds.
+- [ ] M5.7 Implement traffic five-yaw presentation selection and map every visual/yaw frame back to the existing `car`/`van`/`truck` behavior classes without adding AI/physics states; traffic display scale remains pseudo-3D projected rather than fixed 256px.
+- [ ] M5.8 Validate player and traffic readability against representative `city`, `forest`, `mountain-pass` and `tunnel` compositions at gameplay speed, including stable yaw-family registration and no collision/near-miss regression.
 - [ ] M5.9 Produce/import Asset Batch B: approximately 15–18 reusable roadside/environment props shared across all five zones, prioritizing streetlight, guardrail, utility pole, tree cluster, rock/cliff cluster, chevron, tunnel portal/light and core signage.
 - [ ] M5.10 Add remaining shared background/parallax images while keeping the initial target at approximately **5–7 images total** across all outdoor zones; tunnel should normally reuse procedural enclosure instead of extra background stacks.
 - [ ] M5.11 Add timer/score/cargo/combo HUD polish using procedural text/bars plus only the required 5–8 gameplay icons.
@@ -133,7 +133,7 @@ M5 is executed in dependency slices defined by [`M5-Presentation-and-Production-
 - [ ] M5.17 Add collision feedback.
 - [ ] M5.18 Add near-miss feedback.
 - [ ] M5.19 Implement pause/resume without time jump.
-- [ ] M5.20 Audit runtime asset count against the documented **~38–53 unique-image** budget before adding further content.
+- [ ] M5.20 Audit runtime asset count against the revised documented **~49–67 image** budget (expect ~54–67 with all four standard traffic identities) before adding further content.
 - [ ] M5.21 Perform final zone-composition pass so `city`, `rural`, `forest`, `mountain-pass` and `tunnel` remain distinct but visually coherent under one palette.
 
 ## M6 — Host bridge / Unity
