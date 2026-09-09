@@ -1,0 +1,120 @@
+name: M5B Registration Browser Smoke
+
+on:
+  push:
+    branches:
+      - fix/m5b-vehicle-registration
+    paths:
+      - '.github/workflows/m5b-registration-browser-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  browser-smoke:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: WebGame
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.12.0'
+
+      - name: Expose test-only game handle
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('src/main.ts')
+          text = path.read_text()
+          text = text.replace(
+              'new Phaser.Game(gameConfig);',
+              '(window as typeof window & { __registrationGame?: Phaser.Game }).__registrationGame = new Phaser.Game(gameConfig);',
+          )
+          path.write_text(text)
+          PY
+
+      - name: Build production package
+        run: |
+          npm ci
+          npm run typecheck
+          npm run build
+          npm install --no-save --package-lock=false puppeteer-core@24.16.0
+
+      - name: Exercise corrected registration
+        run: |
+          mkdir -p /tmp/m5b-registration-shots
+          python3 -m http.server 4173 --directory dist >/tmp/m5b-registration-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          for attempt in {1..20}; do
+            curl --fail --silent http://127.0.0.1:4173/ >/dev/null && break
+            sleep 1
+          done
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import puppeteer from 'puppeteer-core';
+
+          const browser = await puppeteer.launch({
+            executablePath: '/usr/bin/google-chrome',
+            headless: true,
+            args: ['--no-sandbox', '--disable-gpu'],
+          });
+          const page = await browser.newPage();
+          await page.setViewport({ width: 960, height: 540, deviceScaleFactor: 1 });
+          await page.goto('http://127.0.0.1:4173/', { waitUntil: 'domcontentloaded' });
+          await page.waitForSelector('canvas');
+          await new Promise((resolve) => setTimeout(resolve, 800));
+
+          const initial = await page.evaluate(() => {
+            const game = window.__registrationGame;
+            if (!game) throw new Error('missing test game handle');
+            const scene = game.scene.getScene('Game');
+            return {
+              active: game.scene.isActive('Game'),
+              playerTexture: scene.playerSprite.texture.key,
+              playerOriginY: scene.playerSprite.originY,
+              playerDisplayHeight: scene.playerSprite.displayHeight,
+              visibleTraffic: scene.trafficSprites.filter((image) => image.visible).map((image) => image.texture.key),
+            };
+          });
+          assert.equal(initial.active, true);
+          assert.equal(initial.playerTexture, 'player_rear_center');
+          assert.ok(initial.visibleTraffic.length > 0);
+          assert.ok(initial.visibleTraffic.every((key) => key.startsWith('traffic_')));
+          assert.ok(Math.abs(initial.playerOriginY - 232/256) < 0.0001, `unexpected player originY ${initial.playerOriginY}`);
+          await page.screenshot({ path: '/tmp/m5b-registration-shots/player-center-city.png' });
+
+          await page.keyboard.down('ArrowLeft');
+          await new Promise((resolve) => setTimeout(resolve, 350));
+          const hardLeft = await page.evaluate(() => window.__registrationGame.scene.getScene('Game').playerSprite.texture.key);
+          assert.equal(hardLeft, 'player_rear_hard_left');
+          await page.screenshot({ path: '/tmp/m5b-registration-shots/player-hard-left-city.png' });
+          await page.keyboard.up('ArrowLeft');
+
+          await page.evaluate(() => {
+            const scene = window.__registrationGame.scene.getScene('Game');
+            scene.runState.routeDistance = 10000;
+            scene.traffic.cars.forEach((car, index) => {
+              car.z = 10000 + 2400 + index * 2100;
+              car.passResolved = false;
+              car.nearMissArmed = false;
+            });
+            scene.renderFrame();
+          });
+          await page.screenshot({ path: '/tmp/m5b-registration-shots/traffic-city.png' });
+
+          console.log(initial, { hardLeft });
+          await browser.close();
+          NODE
+
+      - name: Upload representative renders
+        uses: actions/upload-artifact@v4
+        with:
+          name: m5b-registration-browser-renders
+          path: /tmp/m5b-registration-shots/*.png
+          if-no-files-found: error
