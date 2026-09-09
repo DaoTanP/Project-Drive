@@ -1,0 +1,139 @@
+name: M5B Registration Docs Patch V3
+
+on:
+  push:
+    branches:
+      - fix/m5b-vehicle-registration
+    paths:
+      - '.github/workflows/m5b-registration-docs-patch-v3.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: fix/m5b-vehicle-registration
+
+      - name: Patch current M5B evidence
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          acceptance = Path('Docs/06-Quality/M5-Presentation-Acceptance.md')
+          text = acceptance.read_text()
+
+          text = text.replace(
+              '- [ ] all five use compatible `(128,232)` contact registration;',
+              '- [x] all five use compatible `(128,232)` contact registration;',
+              1,
+          )
+
+          player_lines = [
+              '**M5B vertical registration correction:** all five player PNGs were re-registered in-source by integer pixel translation only—no resizing, resampling, palette change or runtime offset. Pre-fix measured alpha bottoms and applied translations were:',
+              '',
+              '```text',
+              'hard_left  Y=200 -> +32 px',
+              'left       Y=210 -> +22 px',
+              'center     Y=212 -> +20 px',
+              'right      Y=210 -> +22 px',
+              'hard_right Y=201 -> +31 px',
+              '```',
+              '',
+              'Post-fix analysis confirms every player frame now has visual alpha base `Y=232`, preserving a 23 px transparent margin below the vehicle. A 960x540 production-browser smoke confirmed the existing `(128,232)` Phaser origin places Center and Hard Left on the road without the previous vertical floating. Several non-center player frames still touch the horizontal canvas boundary (`X=0/255`); that is a separate transparent-bound quality issue and is **not** being hidden through runtime offsets or per-state scaling.',
+          ]
+          player_block = '\n'.join(player_lines)
+          text, count = re.subn(
+              r'\*\*M5B registration blocker:\*\*.*?re-register/re-export the source family against the frozen 256x256 contract\.',
+              player_block,
+              text,
+              count=1,
+              flags=re.S,
+          )
+          if count != 1:
+              raise SystemExit(f'player blocker replacement count={count}')
+
+          text = text.replace(
+              '- [ ] player anchor remains stable across all five textures;',
+              '- [x] player vertical contact anchor remains stable across all five textures;',
+              1,
+          )
+          text = text.replace(
+              'The browser smoke recorded the actual texture sequence `Center -> Left -> Hard Left` under binary keyboard input and the reverse sequence on release. Player grounding remains blocking, so M5.6/M5.8 are not accepted yet.',
+              'The earlier browser smoke recorded the actual texture sequence `Center -> Left -> Hard Left` under binary keyboard input and the reverse sequence on release. Post-fix 960x540 browser rendering confirms the vertical grounding defect is resolved in representative city Center/Hard-Left views. M5.6/M5.8 remain open for horizontal transparent-bound cleanup/full visual approval and human all-zone gameplay-speed readability rather than vertical registration.',
+              1,
+          )
+
+          text = text.replace(
+              '- [ ] all five use `(128,232)`-compatible road-contact registration;',
+              '- [x] all five use `(128,232)`-compatible road-contact registration;',
+              1,
+          )
+
+          traffic_lines = [
+              'Traffic vertical registration has been corrected in-source using the same integer-translation-only rule. Exact pre-fix alpha bottoms / translations to the frozen `Y=232` visual base were:',
+              '',
+              '```text',
+              'taxi      HL 203 +29 | L 208 +24 | C 215 +17 | R 211 +21 | HR 203 +29',
+              'hatchback HL 210 +22 | L 227  +5 | C 226  +6 | R 226  +6 | HR 209 +23',
+              'van       HL 229  +3 | L 234  -2 | C 237  -5 | R 236  -4 | HR 230  +2',
+              'truck     HL 223  +9 | L 227  +5 | C 229  +3 | R 227  +5 | HR 223  +9',
+              '```',
+              '',
+              'Post-fix analysis confirms all twenty traffic frames end at visual alpha base `Y=232` with the original visible RGBA palette preserved. This resolves the vertical contact-line variance without adding per-texture runtime offsets. Human approval of apparent scale/yaw continuity and horizontal transparent bounds remains separate M5.8 work.',
+          ]
+          traffic_block = '\n'.join(traffic_lines)
+          text, count = re.subn(
+              r'Traffic registration remains an acceptance risk\..*?per-texture runtime offsets\.',
+              traffic_block,
+              text,
+              count=1,
+              flags=re.S,
+          )
+          if count != 1:
+              raise SystemExit(f'traffic blocker replacement count={count}')
+
+          acceptance.write_text(text)
+
+          backlog = Path('Docs/05-Planning/Task-Backlog.md')
+          b = backlog.read_text()
+          new_status = (
+              '**M5B status:** runtime Batch A integration is implemented and structurally validated: all 27 standard Batch A images load with frozen source dimensions, four traffic visual identities map to the existing three behavior classes, five-yaw traffic presentation derives from projected road tangent, player binary steering traverses moderate/hard poses, city far/mid authored parallax is active, and M3 collision/near-miss regression remains clean. All 25 player/traffic PNGs are now re-registered in-source to the canonical visual base `Y=232` using integer pixel translation only; post-fix asset analysis and representative 960x540 browser rendering pass. M5.6/M5.8 remain open for horizontal transparent-bound cleanup, remaining family visual approval and human all-zone gameplay-speed readability.'
+          )
+          b, count = re.subn(
+              r'\*\*M5B status:\*\*.*?(?=\n\n- \[ \] M5\.1)',
+              new_status,
+              b,
+              count=1,
+              flags=re.S,
+          )
+          if count != 1:
+              raise SystemExit(f'M5B status replacement count={count}')
+
+          old_m56 = '- [ ] M5.6 Produce/import Asset Batch A: five `256 x 256` player steering poses, complete `256 x 256` five-yaw families for at least three traffic identities (standard target: taxi, hatchback, van, truck = 20 traffic frames), plus city far/mid backgrounds. Runtime import is complete; source registration acceptance remains open.'
+          new_m56 = '- [ ] M5.6 Produce/import Asset Batch A: five `256 x 256` player steering poses, complete `256 x 256` five-yaw families for at least three traffic identities (standard target: taxi, hatchback, van, truck = 20 traffic frames), plus city far/mid backgrounds. Runtime import and vertical source registration are complete; horizontal transparent-bound cleanup/full visual approval remains open.'
+          if old_m56 not in b:
+              raise SystemExit('M5.6 current line not found')
+          b = b.replace(old_m56, new_m56, 1)
+
+          old_m58 = '- [ ] M5.8 Validate player and traffic readability against representative `city`, `forest`, `mountain-pass` and `tunnel` compositions at gameplay speed, including stable yaw-family registration and no collision/near-miss regression. Structural/browser and M3 regression checks pass; stable source registration remains blocking.'
+          new_m58 = '- [ ] M5.8 Validate player and traffic readability against representative `city`, `forest`, `mountain-pass` and `tunnel` compositions at gameplay speed, including stable yaw-family registration and no collision/near-miss regression. Vertical registration, structural/browser checks and M3 regression pass; horizontal bounds/full family visual approval and human all-zone gameplay-speed readability remain open.'
+          if old_m58 not in b:
+              raise SystemExit('M5.8 current line not found')
+          b = b.replace(old_m58, new_m58, 1)
+          backlog.write_text(b)
+          PY
+
+      - name: Commit docs
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Docs/05-Planning/Task-Backlog.md Docs/06-Quality/M5-Presentation-Acceptance.md
+          git diff --cached --quiet && { echo 'no docs changes'; exit 1; }
+          git commit -m 'docs: record corrected vehicle contact registration'
+          git push origin HEAD:fix/m5b-vehicle-registration
