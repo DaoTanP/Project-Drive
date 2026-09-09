@@ -9,10 +9,12 @@ import {
   PLAYER_SOURCE_SIZE,
   PLAYER_TEXTURE_KEYS,
   PLAYER_TEXTURE_PATHS,
+} from '../config';
+import {
   TRAFFIC_SOURCE_SIZE,
   TRAFFIC_TEXTURE_KEYS,
   TRAFFIC_TEXTURE_PATHS,
-} from '../config';
+} from '../game/Traffic';
 
 export class BootScene extends Phaser.Scene {
   private readonly failedAssetKeys: string[] = [];
