@@ -1,0 +1,143 @@
+name: M5B Horizontal Bounds Analysis
+
+on:
+  push:
+    branches:
+      - fix/m5b-horizontal-bounds
+    paths:
+      - '.github/workflows/m5b-horizontal-bounds-analysis.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Pillow
+        run: python -m pip install --disable-pip-version-check pillow
+
+      - name: Analyze vehicle horizontal bounds
+        run: |
+          mkdir -p /tmp/m5b-bounds
+          python <<'PY'
+          from pathlib import Path
+          from PIL import Image, ImageDraw, ImageFont
+          import csv, json
+
+          root = Path('WebGame/public/assets')
+          groups = {
+              'player': sorted((root / 'player').glob('player_rear_*.png')),
+              'taxi': sorted((root / 'traffic').glob('traffic_taxi_rear_*.png')),
+              'hatchback': sorted((root / 'traffic').glob('traffic_hatchback_rear_*.png')),
+              'van': sorted((root / 'traffic').glob('traffic_van_rear_*.png')),
+              'truck': sorted((root / 'traffic').glob('traffic_truck_rear_*.png')),
+          }
+          yaw_order = ['hard_left', 'left', 'center', 'right', 'hard_right']
+
+          def yaw_of(path):
+              stem = path.stem
+              for y in yaw_order:
+                  if stem.endswith('_' + y):
+                      return y
+              return stem
+
+          for k in groups:
+              groups[k] = sorted(groups[k], key=lambda p: yaw_order.index(yaw_of(p)))
+
+          def max_run(values):
+              best = cur = 0
+              prev = None
+              for y in values:
+                  if prev is not None and y == prev + 1:
+                      cur += 1
+                  else:
+                      cur = 1
+                  best = max(best, cur)
+                  prev = y
+              return best
+
+          rows = []
+          out = Path('/tmp/m5b-bounds')
+          font = ImageFont.load_default()
+
+          for family, paths in groups.items():
+              sheet = Image.new('RGBA', (5 * 320, 344), (18, 18, 24, 255))
+              draw_sheet = ImageDraw.Draw(sheet)
+              for i, path in enumerate(paths):
+                  im = Image.open(path).convert('RGBA')
+                  if im.size != (256, 256):
+                      raise SystemExit(f'bad size: {path} {im.size}')
+                  a = im.getchannel('A')
+                  bbox = a.getbbox()
+                  if bbox is None:
+                      raise SystemExit(f'empty alpha: {path}')
+                  x0, y0, x1e, y1e = bbox
+                  x1, y1 = x1e - 1, y1e - 1
+                  px = a.load()
+                  left_ys = [y for y in range(256) if px[0, y] > 0]
+                  right_ys = [y for y in range(256) if px[255, y] > 0]
+                  near_left = sum(1 for x in range(4) for y in range(256) if px[x, y] > 0)
+                  near_right = sum(1 for x in range(252,256) for y in range(256) if px[x, y] > 0)
+                  edge_count = len(left_ys) + len(right_ys)
+                  edge_span = 0
+                  if left_ys:
+                      edge_span = max(edge_span, max(left_ys) - min(left_ys) + 1)
+                  if right_ys:
+                      edge_span = max(edge_span, max(right_ys) - min(right_ys) + 1)
+                  likely_clip = edge_count >= 3 or max_run(left_ys) >= 3 or max_run(right_ys) >= 3
+                  rows.append({
+                      'family': family,
+                      'yaw': yaw_of(path),
+                      'file': path.name,
+                      'bbox_left': x0,
+                      'bbox_right': x1,
+                      'bbox_top': y0,
+                      'bbox_bottom': y1,
+                      'left_margin': x0,
+                      'right_margin': 255-x1,
+                      'left_edge_px': len(left_ys),
+                      'right_edge_px': len(right_ys),
+                      'left_edge_max_run': max_run(left_ys),
+                      'right_edge_max_run': max_run(right_ys),
+                      'near_left_4px': near_left,
+                      'near_right_4px': near_right,
+                      'likely_clip_by_edge_occupancy': likely_clip,
+                  })
+
+                  panel = Image.new('RGBA', (320, 320), (24, 24, 32, 255))
+                  panel.alpha_composite(im, (32, 32))
+                  d = ImageDraw.Draw(panel)
+                  # source canvas border and registration guides
+                  d.rectangle((31,31,288,288), outline=(110,110,125,255), width=1)
+                  d.line((32+128,32,32+128,287), fill=(80,180,255,160), width=1)
+                  d.line((32,32+232,287,32+232), fill=(80,255,140,160), width=1)
+                  # highlight any source pixels that touch horizontal edge
+                  for y in left_ys:
+                      d.point((32,32+y), fill=(255,40,80,255))
+                  for y in right_ys:
+                      d.point((287,32+y), fill=(255,40,80,255))
+                  label = f"{yaw_of(path)}  L{x0} R{255-x1}  edge {len(left_ys)}/{len(right_ys)}"
+                  d.text((36, 296), label, font=font, fill=(245,245,245,255))
+                  sheet.alpha_composite(panel, (i*320, 0))
+              sheet.save(out / f'{family}_horizontal_bounds.png')
+
+          with (out / 'horizontal_bounds.csv').open('w', newline='') as f:
+              w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+              w.writeheader(); w.writerows(rows)
+          (out / 'horizontal_bounds.json').write_text(json.dumps(rows, indent=2))
+
+          print('family,yaw,left_margin,right_margin,left_edge_px,right_edge_px,left_run,right_run,likely_clip')
+          for r in rows:
+              print(f"{r['family']},{r['yaw']},{r['left_margin']},{r['right_margin']},{r['left_edge_px']},{r['right_edge_px']},{r['left_edge_max_run']},{r['right_edge_max_run']},{r['likely_clip_by_edge_occupancy']}")
+          PY
+
+      - name: Upload analysis artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: m5b-horizontal-bounds
+          path: /tmp/m5b-bounds
+          if-no-files-found: error
