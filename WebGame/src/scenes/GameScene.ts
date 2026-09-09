@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 
 import {
+  CITY_BACKGROUND_SOURCE_HEIGHT,
   PLAYER_ANCHOR_X,
   PLAYER_ANCHOR_Y,
   PLAYER_DISPLAY_SIZE,
@@ -17,7 +18,7 @@ import {
 } from '../game/GameState';
 import { InputController } from '../game/Input';
 import { Player } from '../game/Player';
-import { Road } from '../game/Road';
+import { Road, type EnvironmentZone } from '../game/Road';
 import { Scoring } from '../game/Scoring';
 import { Traffic } from '../game/Traffic';
 
@@ -29,6 +30,9 @@ const RISKY_TRAFFIC_GAP_SCALE = 0.82;
 const SAFE_TRAFFIC_GAP_SCALE = 1.15;
 const PLAYER_SCREEN_Y = 0.84;
 const VISUAL_STEER_RESPONSE_PER_SECOND = 5.5;
+const CITY_BACKGROUND_HORIZON_RATIO = 0.54;
+const CITY_FAR_PARALLAX_RATE = 0.012;
+const CITY_MID_PARALLAX_RATE = 0.028;
 
 export class GameScene extends Phaser.Scene {
   private road!: Road;
@@ -38,7 +42,9 @@ export class GameScene extends Phaser.Scene {
   private controls!: InputController;
   private runState!: GameState;
   private roadGraphics!: Phaser.GameObjects.Graphics;
-  private trafficGraphics!: Phaser.GameObjects.Graphics;
+  private trafficSprites: Phaser.GameObjects.Image[] = [];
+  private cityBackgroundFar!: Phaser.GameObjects.TileSprite;
+  private cityBackgroundMid!: Phaser.GameObjects.TileSprite;
   private playerSprite!: Phaser.GameObjects.Image;
   private hudText!: Phaser.GameObjects.Text;
   private routePromptText!: Phaser.GameObjects.Text;
@@ -71,8 +77,25 @@ export class GameScene extends Phaser.Scene {
       destinationDistance: this.road.destinationDistance,
     });
 
+    const cityBackgroundHeight = this.scale.height * CITY_BACKGROUND_HORIZON_RATIO;
+    const cityBackgroundScale = cityBackgroundHeight / CITY_BACKGROUND_SOURCE_HEIGHT;
+
+    this.cityBackgroundFar = this.add
+      .tileSprite(0, 0, this.scale.width, cityBackgroundHeight, 'bg_city_far')
+      .setOrigin(0, 0)
+      .setTileScale(cityBackgroundScale, cityBackgroundScale)
+      .setDepth(-20);
+
+    this.cityBackgroundMid = this.add
+      .tileSprite(0, 0, this.scale.width, cityBackgroundHeight, 'bg_city_mid')
+      .setOrigin(0, 0)
+      .setTileScale(cityBackgroundScale, cityBackgroundScale)
+      .setDepth(-19);
+
     this.roadGraphics = this.add.graphics().setDepth(0);
-    this.trafficGraphics = this.add.graphics().setDepth(5);
+    this.trafficSprites = Array.from({ length: this.traffic.renderPoolSize }, () =>
+      this.add.image(0, 0, 'traffic_taxi_rear_center').setVisible(false).setDepth(5),
+    );
     this.playerSprite = this.add
       .image(
         this.scale.width * 0.5,
@@ -106,7 +129,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(30);
 
     this.add
-      .text(this.scale.width - 20, 18, 'M5 PLAYER SPRITES\nARROWS or WASD', {
+      .text(this.scale.width - 20, 18, 'M5 BATCH A\nARROWS or WASD', {
         align: 'right',
         fontFamily: 'monospace',
         fontSize: '14px',
@@ -238,6 +261,8 @@ export class GameScene extends Phaser.Scene {
     const roadPosition = this.road.positionForRouteDistance(this.runState.routeDistance);
     const zone = this.road.zoneAtRouteDistance(this.runState.routeDistance);
 
+    this.updateCityBackgrounds(zone);
+
     this.road.render(this.roadGraphics, {
       playerPosition: roadPosition,
       playerRoadX: this.player.roadX,
@@ -245,7 +270,7 @@ export class GameScene extends Phaser.Scene {
       viewportHeight: height,
     });
 
-    this.traffic.render(this.trafficGraphics, this.road, {
+    this.traffic.render(this.trafficSprites, this.road, {
       roadPositionOffset: this.road.startPosition,
       playerRouteDistance: this.runState.routeDistance,
     });
@@ -267,6 +292,16 @@ export class GameScene extends Phaser.Scene {
       `ZONE    ${zone.toUpperCase()}`,
       `BRANCH  ${(this.routeChoice ?? 'UNDECIDED').toUpperCase()}`,
     ]);
+  }
+
+  private updateCityBackgrounds(zone: EnvironmentZone): void {
+    const visible = zone === 'city';
+    this.cityBackgroundFar.setVisible(visible);
+    this.cityBackgroundMid.setVisible(visible);
+    if (!visible) return;
+
+    this.cityBackgroundFar.tilePositionX = this.runState.routeDistance * CITY_FAR_PARALLAX_RATE;
+    this.cityBackgroundMid.tilePositionX = this.runState.routeDistance * CITY_MID_PARALLAX_RATE;
   }
 
   private updatePlayerSprite(width: number, height: number): void {
