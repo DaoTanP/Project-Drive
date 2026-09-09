@@ -106,7 +106,7 @@ right      Y=210 -> +22 px
 hard_right Y=201 -> +31 px
 ```
 
-Post-fix analysis confirms every player frame now has visual alpha base `Y=232`, preserving a 23 px transparent margin below the vehicle. A 960x540 production-browser smoke confirmed the existing `(128,232)` Phaser origin places Center and Hard Left on the road without the previous vertical floating. Several non-center player frames still touch the horizontal canvas boundary (`X=0/255`); that is a separate transparent-bound quality issue and is **not** being hidden through runtime offsets or per-state scaling.
+Post-fix analysis confirms every player frame now has visual alpha base `Y=232`, preserving a 23 px transparent margin below the vehicle. A 960x540 production-browser smoke confirmed the existing `(128,232)` Phaser origin places Center and Hard Left on the road without the previous vertical floating. A dedicated horizontal-bound audit confirms that all four non-center player frames (`Hard Left`, `Left`, `Right`, `Hard Right`) contain contiguous opaque runs on both `X=0` and `X=255`. These are source-clipping defects, not harmless edge proximity, and cannot be repaired losslessly by horizontal translation because the silhouettes already occupy the full 256 px width. They remain explicit re-export blockers; no runtime offset or per-state scaling is used to hide them.
 
 ### 4.2 Gameplay visual acceptance
 
@@ -120,7 +120,7 @@ Runtime acceptance additionally requires:
 - [ ] no unintended smoothing or obvious fractional-scale shimmer is visible with accepted final 256px sources;
 - [ ] the player remains correctly grounded/readable over city, forest, mountain-pass and tunnel compositions.
 
-The earlier browser smoke recorded the actual texture sequence `Center -> Left -> Hard Left` under binary keyboard input and the reverse sequence on release. Post-fix 960x540 browser rendering confirms the vertical grounding defect is resolved in representative city Center/Hard-Left views. M5.6/M5.8 remain open for horizontal transparent-bound cleanup/full visual approval and human all-zone gameplay-speed readability rather than vertical registration.
+The earlier browser smoke recorded the actual texture sequence `Center -> Left -> Hard Left` under binary keyboard input and the reverse sequence on release. Post-fix 960x540 browser rendering confirms the vertical grounding defect is resolved. A later representative static render pass additionally captured city Center/Hard-Left/Hard-Right plus rural, forest, mountain-pass and tunnel Center views: player grounding/readability remained structurally clear in those captures. This is not a continuous human gameplay-speed approval, and the four clipped non-center source frames still block final M5.6/M5.8 acceptance.
 
 Do not expand to seven yaw states or pitch families before this gate fails for a documented reason.
 
@@ -160,7 +160,7 @@ van       HL 229  +3 | L 234  -2 | C 237  -5 | R 236  -4 | HR 230  +2
 truck     HL 223  +9 | L 227  +5 | C 229  +3 | R 227  +5 | HR 223  +9
 ```
 
-Post-fix analysis confirms all twenty traffic frames end at visual alpha base `Y=232` with the original visible RGBA palette preserved. This resolves the vertical contact-line variance without adding per-texture runtime offsets. Human approval of apparent scale/yaw continuity and horizontal transparent bounds remains separate M5.8 work.
+Post-fix analysis confirms all twenty traffic frames end at visual alpha base `Y=232` with the original visible RGBA palette preserved. A dedicated horizontal-bound audit then classified the remaining source edges. Taxi's four non-center frames and the other non-flagged traffic frames retain at least one transparent pixel at each horizontal edge and are tight but intact. `traffic_truck_rear_left.png` was the only losslessly correctable edge-touch case: it had a 4 px opaque run at `X=0` with 3 px spare on the opposite side, so the source was translated exactly `+1 px` on X, producing margins `1/2` without resize/resample or palette change. Three traffic frames remain true source-clipping blockers: `traffic_hatchback_rear_hard_left.png`, `traffic_hatchback_rear_right.png`, and `traffic_van_rear_hard_right.png`. Their contiguous opaque edge runs cannot be restored by translation and require source re-export/regeneration.
 
 ### 5.2 Traffic content count
 
@@ -198,7 +198,7 @@ Acceptance:
 - [x] traffic collision envelopes remain road-space gameplay data, not sprite/alpha bounds;
 - [x] M3 collision/near-miss regression tests pass after five-yaw sprite integration.
 
-Pure regression validation re-ran collision one-shot, near-miss one-shot, cargo damage and speed retention after the traffic rendering change. Representative browser renders also confirmed production traffic textures are projected in city, forest, mountain-pass and tunnel test views.
+Pure regression validation re-ran collision one-shot, near-miss one-shot, cargo damage and speed retention after the traffic rendering change. The horizontal-bound follow-up also captured representative 960x540 city, rural, forest, mountain-pass and tunnel views with visible traffic and a correctly grounded Center player. Those static structural renders pass, but continuous human gameplay-speed silhouette/yaw approval remains open, and the three clipped traffic sources above prevent final family acceptance.
 
 Do not expand traffic to pitch families or more than five yaw states without documented gameplay evidence.
 
