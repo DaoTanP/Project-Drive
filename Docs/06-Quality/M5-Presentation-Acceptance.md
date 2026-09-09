@@ -74,6 +74,8 @@ M5.2 therefore remains open until the touch and production HUD surfaces exist.
 
 ## 4. Player Batch A acceptance
 
+**Prototype progression status:** the current player/traffic yaw art is accepted for prototype work. Final horizontal-bound, camera/yaw continuity and continuous gameplay-speed family approval are deferred to M7.10. Known source defects remain documented and must not be hidden with runtime offsets or per-state scaling.
+
 The five player frames must pass the authoritative `Player-Sprite-Angle-Specification.md` checklist first.
 
 ### 4.1 256 x 256 source-format gate
@@ -215,13 +217,18 @@ Batch A intentionally leaves rural/forest/mountain-pass background replacement t
 
 ## 7. Roadside sprite acceptance
 
-- [ ] deterministic M4 placement remains stable between runs;
-- [ ] authored landmarks retain stable positions;
-- [ ] sprite-backed props render far-to-near;
-- [ ] hill/crest clipping prevents props drawing through foreground terrain;
-- [ ] bottom-center/documented pivots remain stable under perspective scaling;
-- [ ] projected sprite objects are pooled/reused rather than allocated continuously per frame;
-- [ ] all five zones remain distinguishable at gameplay speed with the shared prop inventory.
+### 7.1 M5C.1 projection infrastructure
+
+- [x] deterministic M4 placement remains stable between repeated identical renders;
+- [ ] authored landmark sprite replacement retains stable positions after landmark production assets exist;
+- [x] sprite-backed props render far-to-near;
+- [x] hill/crest clipping prevents projected props drawing through foreground terrain;
+- [x] the runtime sprite path uses bottom-center origin for the representative billboard-style prop contract;
+- [x] projected sprite objects are pooled/reused rather than allocated continuously per frame;
+- [ ] production prop pivots are visually approved after real Batch B PNGs exist;
+- [ ] all five zones remain distinguishable at gameplay speed with the shared production prop inventory.
+
+M5C.1 was validated with five temporary CI-only synthetic textures (`streetlight`, `guardrail`, `tree`, `rock`, `chevron`). The production build/typecheck passed; the browser route scan used a fixed 180-image pool, encountered all five representative kinds, recorded 514 far-to-near multi-sprite samples, reproduced identical projected descriptors on repeated state, retained the same image objects, and encountered actual cropped sprites behind road crests. The synthetic files and test-only preload were not committed. This validates infrastructure only; `WebGame/public/assets/props/` still has no production Batch B art, so M5.9 remains open and the normal runtime keeps M4 procedural fallback presentation.
 
 ## 8. HUD/font acceptance
 

@@ -18,7 +18,12 @@ import {
 } from '../game/GameState';
 import { InputController } from '../game/Input';
 import { Player } from '../game/Player';
-import { Road, type EnvironmentZone } from '../game/Road';
+import {
+  Road,
+  type EnvironmentZone,
+  type RoadsideSpriteKind,
+  type RoadsideSpriteProjection,
+} from '../game/Road';
 import { Scoring } from '../game/Scoring';
 import { Traffic } from '../game/Traffic';
 
@@ -34,6 +39,15 @@ const CITY_BACKGROUND_HORIZON_RATIO = 0.54;
 const CITY_FAR_PARALLAX_RATE = 0.012;
 const CITY_MID_PARALLAX_RATE = 0.028;
 
+const ROADSIDE_TEXTURE_BY_KIND: Partial<Record<RoadsideSpriteKind, string>> = {
+  light: 'prop_streetlight',
+  rail: 'prop_guardrail',
+  tree: 'prop_tree_cluster_01',
+  rock: 'prop_rock_cluster_01',
+  chevron: 'prop_chevron',
+};
+const ROADSIDE_FLIPPABLE_KINDS: ReadonlySet<RoadsideSpriteKind> = new Set(['chevron']);
+
 export class GameScene extends Phaser.Scene {
   private road!: Road;
   private player!: Player;
@@ -42,6 +56,9 @@ export class GameScene extends Phaser.Scene {
   private controls!: InputController;
   private runState!: GameState;
   private roadGraphics!: Phaser.GameObjects.Graphics;
+  private roadsideSprites: Phaser.GameObjects.Image[] = [];
+  private roadsideSpriteProjections: RoadsideSpriteProjection[] = [];
+  private roadsideSpriteKinds: Set<RoadsideSpriteKind> = new Set();
   private trafficSprites: Phaser.GameObjects.Image[] = [];
   private cityBackgroundFar!: Phaser.GameObjects.TileSprite;
   private cityBackgroundMid!: Phaser.GameObjects.TileSprite;
@@ -93,6 +110,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(-19);
 
     this.roadGraphics = this.add.graphics().setDepth(0);
+    this.initializeRoadsideSpritePool();
     this.trafficSprites = Array.from({ length: this.traffic.renderPoolSize }, () =>
       this.add.image(0, 0, 'traffic_taxi_rear_center').setVisible(false).setDepth(5),
     );
@@ -263,12 +281,17 @@ export class GameScene extends Phaser.Scene {
 
     this.updateCityBackgrounds(zone);
 
-    this.road.render(this.roadGraphics, {
-      playerPosition: roadPosition,
-      playerRoadX: this.player.roadX,
-      viewportWidth: width,
-      viewportHeight: height,
-    });
+    this.road.render(
+      this.roadGraphics,
+      {
+        playerPosition: roadPosition,
+        playerRoadX: this.player.roadX,
+        viewportWidth: width,
+        viewportHeight: height,
+      },
+      this.roadsideSpriteKinds,
+    );
+    this.renderRoadsideSprites();
 
     this.traffic.render(this.trafficSprites, this.road, {
       roadPositionOffset: this.road.startPosition,
@@ -292,6 +315,67 @@ export class GameScene extends Phaser.Scene {
       `ZONE    ${zone.toUpperCase()}`,
       `BRANCH  ${(this.routeChoice ?? 'UNDECIDED').toUpperCase()}`,
     ]);
+  }
+
+  private initializeRoadsideSpritePool(): void {
+    this.roadsideSpriteKinds = new Set(
+      (Object.entries(ROADSIDE_TEXTURE_BY_KIND) as Array<[RoadsideSpriteKind, string]>)
+        .filter(([, textureKey]) => this.textures.exists(textureKey))
+        .map(([kind]) => kind),
+    );
+
+    this.roadsideSpriteProjections = Array.from(
+      { length: this.road.roadsideSpritePoolSize },
+      (): RoadsideSpriteProjection => ({
+        x: 0, y: 0, cameraZ: 0, pixelsPerWorld: 0, clipY: 0,
+        kind: 'tree', side: 1, zone: 'rural', worldWidth: 0, worldHeight: 0,
+      }),
+    );
+
+    this.roadsideSprites = this.roadsideSpriteKinds.size === 0
+      ? []
+      : Array.from({ length: this.road.roadsideSpritePoolSize }, () =>
+          this.add.image(0, 0, 'player_rear_center').setOrigin(0.5, 1).setVisible(false).setDepth(1),
+        );
+  }
+
+  private renderRoadsideSprites(): void {
+    for (const image of this.roadsideSprites) image.setVisible(false);
+    if (this.roadsideSprites.length === 0) return;
+
+    const count = this.road.collectRoadsideSprites(this.roadsideSpriteProjections, this.roadsideSpriteKinds);
+    for (let i = 0; i < count; i += 1) {
+      const projection = this.roadsideSpriteProjections[i];
+      const textureKey = ROADSIDE_TEXTURE_BY_KIND[projection.kind];
+      if (textureKey === undefined || !this.textures.exists(textureKey)) continue;
+
+      const displayWidth = projection.worldWidth * projection.pixelsPerWorld;
+      const displayHeight = projection.worldHeight * projection.pixelsPerWorld;
+      if (displayWidth < 1.5 || displayHeight < 2) continue;
+
+      const top = projection.y - displayHeight;
+      const visibleBottom = Math.min(projection.y, projection.clipY);
+      const visibleHeight = visibleBottom - top;
+      if (visibleHeight <= 1) continue;
+
+      const image = this.roadsideSprites[i];
+      image
+        .setTexture(textureKey)
+        .setOrigin(0.5, 1)
+        .setPosition(projection.x, projection.y)
+        .setDisplaySize(displayWidth, displayHeight)
+        .setFlipX(ROADSIDE_FLIPPABLE_KINDS.has(projection.kind) && projection.side < 0)
+        .setDepth(1 + i / (this.roadsideSprites.length + 1))
+        .setVisible(true);
+
+      if (visibleHeight < displayHeight - 0.5) {
+        const sourceHeight = image.frame.height;
+        const cropHeight = Math.max(1, Math.min(sourceHeight, Math.ceil(sourceHeight * (visibleHeight / displayHeight))));
+        image.setCrop(0, 0, image.frame.width, cropHeight);
+      } else {
+        image.setCrop();
+      }
+    }
   }
 
   private updateCityBackgrounds(zone: EnvironmentZone): void {
