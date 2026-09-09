@@ -59,6 +59,49 @@ export const PLAYER_DISPLAY_SIZE = 256;
 export const PLAYER_ANCHOR_X = 128;
 export const PLAYER_ANCHOR_Y = 232;
 
+export const TRAFFIC_VISUAL_IDS = ['taxi', 'hatchback', 'van', 'truck'] as const;
+export type TrafficVisualId = (typeof TRAFFIC_VISUAL_IDS)[number];
+
+export const TRAFFIC_YAW_IDS = [
+  'hard_left',
+  'left',
+  'center',
+  'right',
+  'hard_right',
+] as const;
+export type TrafficYawId = (typeof TRAFFIC_YAW_IDS)[number];
+export type TrafficTextureKey = `traffic_${TrafficVisualId}_rear_${TrafficYawId}`;
+
+export function trafficTextureKey(
+  visual: TrafficVisualId,
+  yaw: TrafficYawId,
+): TrafficTextureKey {
+  return `traffic_${visual}_rear_${yaw}`;
+}
+
+export const TRAFFIC_TEXTURE_KEYS = TRAFFIC_VISUAL_IDS.flatMap((visual) =>
+  TRAFFIC_YAW_IDS.map((yaw) => trafficTextureKey(visual, yaw)),
+) as readonly TrafficTextureKey[];
+
+export const TRAFFIC_TEXTURE_PATHS = Object.fromEntries(
+  TRAFFIC_TEXTURE_KEYS.map((key) => [key, `assets/traffic/${key}.png`]),
+) as Record<TrafficTextureKey, string>;
+
+export const TRAFFIC_SOURCE_SIZE = 256;
+export const TRAFFIC_ANCHOR_X = 128;
+export const TRAFFIC_ANCHOR_Y = 232;
+
+export const CITY_BACKGROUND_TEXTURE_KEYS = ['bg_city_far', 'bg_city_mid'] as const;
+export type CityBackgroundTextureKey = (typeof CITY_BACKGROUND_TEXTURE_KEYS)[number];
+
+export const CITY_BACKGROUND_TEXTURE_PATHS: Record<CityBackgroundTextureKey, string> = {
+  bg_city_far: 'assets/backgrounds/bg_city_far.png',
+  bg_city_mid: 'assets/backgrounds/bg_city_mid.png',
+};
+
+export const CITY_BACKGROUND_SOURCE_WIDTH = 2048;
+export const CITY_BACKGROUND_SOURCE_HEIGHT = 512;
+
 export const gameConfig: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   parent: 'game-container',
