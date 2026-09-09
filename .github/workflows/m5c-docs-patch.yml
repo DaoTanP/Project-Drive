@@ -1,0 +1,90 @@
+name: M5C Docs Patch
+
+on:
+  push:
+    branches:
+      - feat/m5c-roadside-sprites
+    paths:
+      - '.github/workflows/m5c-docs-patch.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: feat/m5c-roadside-sprites
+
+      - name: Record prototype deferral and M5C.1 evidence
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          plan_path = Path('Docs/05-Planning/M5-Presentation-and-Production-Assets.md')
+          plan = plan_path.read_text()
+          marker = "### Batch A gate\n\nBefore Batch B:\n"
+          replacement = "### Batch A gate\n\n**Prototype progression exception:** the current vehicle yaw families are accepted as prototype art so environment work can proceed. Known horizontal source clipping and final yaw-family/camera/readability approval are deferred to M7.10. This does not relax the final production contract and must not trigger runtime compensation, per-state scaling or vehicle redesign during M5C.\n\nBefore final production approval:\n"
+          if marker not in plan:
+              raise SystemExit('Batch A gate marker not found')
+          plan = plan.replace(marker, replacement, 1)
+
+          marker = "Do not add `EnvironmentRenderer`, `PropManager`, ECS or zone scenes preemptively.\n"
+          addition = marker + "\n**M5C.1 infrastructure status:** implemented and browser-validated. `Road.ts` now exposes deterministic sprite-backed roadside projections from the same M4 placement rules, while `GameScene.ts` owns a bounded reusable `Phaser.Image` pool. A temporary CI-only five-texture harness validated a fixed pool of 180 images, all five representative prop kinds, 514 far-to-near ordering samples, deterministic repeated projection, stable pool object reuse and real crest cropping. These synthetic textures were never committed and do **not** count toward M5.9 production-asset acceptance. Until real Batch B prop PNGs are committed/preloaded, the runtime intentionally retains M4 procedural roadside presentation.\n"
+          if marker not in plan:
+              raise SystemExit('projected-sprite rule marker not found')
+          plan = plan.replace(marker, addition, 1)
+          plan_path.write_text(plan)
+
+          backlog_path = Path('Docs/05-Planning/Task-Backlog.md')
+          backlog = backlog_path.read_text()
+          status_start = backlog.index('**M5B status:**')
+          status_end = backlog.index('\n\n- [ ] M5.1', status_start)
+          new_status = "**M5B status:** prototype Batch A integration is complete and structurally validated: all 27 standard Batch A images load with frozen source dimensions, four traffic visual identities map to the existing three behavior classes, five-yaw traffic presentation derives from projected road tangent, player binary steering traverses moderate/hard poses, city far/mid authored parallax is active, and M3 collision/near-miss regression remains clean. All 25 player/traffic PNGs are registered to visual base `Y=232`. The current yaw families are explicitly accepted for prototype progression; the seven known horizontal clipping defects and final family/gameplay-speed visual approval are deferred to M7.10 and are not M5C blockers. No runtime compensation or per-state scaling is authorized to hide those defects.\n\n**M5C.1 status:** roadside sprite projection/pooling infrastructure is implemented and validated with CI-only synthetic textures. Deterministic M4 placement, fixed image-pool reuse, far-to-near ordering and crest clipping pass. No production prop PNGs are committed yet, so M5.9 remains open and the normal build intentionally keeps the procedural M4 fallback."
+          backlog = backlog[:status_start] + new_status + backlog[status_end:]
+
+          old = "- [ ] M5.6 Produce/import Asset Batch A: five `256 x 256` player steering poses, complete `256 x 256` five-yaw families for at least three traffic identities (standard target: taxi, hatchback, van, truck = 20 traffic frames), plus city far/mid backgrounds. Runtime import and vertical source registration are complete; seven source frames remain horizontally clipped and require re-export before full visual approval."
+          new = "- [x] M5.6 Produce/import prototype Asset Batch A: five `256 x 256` player steering poses, four complete traffic five-yaw families and city far/mid backgrounds. Final yaw-family/clipping approval is deferred to M7.10 and does not block M5C."
+          if old not in backlog:
+              raise SystemExit('M5.6 marker not found')
+          backlog = backlog.replace(old, new, 1)
+
+          old = "- [ ] M5.8 Validate player and traffic readability against representative `city`, `forest`, `mountain-pass` and `tunnel` compositions at gameplay speed, including stable yaw-family registration and no collision/near-miss regression. Vertical registration, static representative city/rural/forest/mountain-pass/tunnel browser checks and M3 regression pass; seven clipped sources plus continuous human gameplay-speed/family approval remain open."
+          new = "- [ ] M5.8 Final player/traffic yaw-family and gameplay-speed readability approval is deferred to M7.10. Structural browser checks, vertical registration and M3 regression pass; this item is intentionally non-blocking for prototype environment slices."
+          if old not in backlog:
+              raise SystemExit('M5.8 marker not found')
+          backlog = backlog.replace(old, new, 1)
+
+          old = "- [ ] M5.9 Produce/import Asset Batch B: approximately 15–18 reusable roadside/environment props shared across all five zones, prioritizing streetlight, guardrail, utility pole, tree cluster, rock/cliff cluster, chevron, tunnel portal/light and core signage."
+          new = "- [ ] M5.9 Produce/import Asset Batch B: approximately 15–18 reusable roadside/environment props shared across all five zones, prioritizing streetlight, guardrail, utility pole, tree cluster, rock/cliff cluster, chevron, tunnel portal/light and core signage. M5C.1 projection/pool/crest-clipping infrastructure is complete; production prop art/preload and visual composition remain open."
+          if old not in backlog:
+              raise SystemExit('M5.9 marker not found')
+          backlog = backlog.replace(old, new, 1)
+          backlog_path.write_text(backlog)
+
+          acceptance_path = Path('Docs/06-Quality/M5-Presentation-Acceptance.md')
+          acceptance = acceptance_path.read_text()
+          marker = "## 4. Player Batch A acceptance\n"
+          addition = marker + "\n**Prototype progression status:** the current player/traffic yaw art is accepted for prototype work. Final horizontal-bound, camera/yaw continuity and continuous gameplay-speed family approval are deferred to M7.10. Known source defects remain documented and must not be hidden with runtime offsets or per-state scaling.\n"
+          if marker not in acceptance:
+              raise SystemExit('player acceptance marker not found')
+          acceptance = acceptance.replace(marker, addition, 1)
+
+          old = "## 7. Roadside sprite acceptance\n\n- [ ] deterministic M4 placement remains stable between runs;\n- [ ] authored landmarks retain stable positions;\n- [ ] sprite-backed props render far-to-near;\n- [ ] hill/crest clipping prevents props drawing through foreground terrain;\n- [ ] bottom-center/documented pivots remain stable under perspective scaling;\n- [ ] projected sprite objects are pooled/reused rather than allocated continuously per frame;\n- [ ] all five zones remain distinguishable at gameplay speed with the shared prop inventory."
+          new = "## 7. Roadside sprite acceptance\n\n### 7.1 M5C.1 projection infrastructure\n\n- [x] deterministic M4 placement remains stable between repeated identical renders;\n- [ ] authored landmark sprite replacement retains stable positions after landmark production assets exist;\n- [x] sprite-backed props render far-to-near;\n- [x] hill/crest clipping prevents projected props drawing through foreground terrain;\n- [x] the runtime sprite path uses bottom-center origin for the representative billboard-style prop contract;\n- [x] projected sprite objects are pooled/reused rather than allocated continuously per frame;\n- [ ] production prop pivots are visually approved after real Batch B PNGs exist;\n- [ ] all five zones remain distinguishable at gameplay speed with the shared production prop inventory.\n\nM5C.1 was validated with five temporary CI-only synthetic textures (`streetlight`, `guardrail`, `tree`, `rock`, `chevron`). The production build/typecheck passed; the browser route scan used a fixed 180-image pool, encountered all five representative kinds, recorded 514 far-to-near multi-sprite samples, reproduced identical projected descriptors on repeated state, retained the same image objects, and encountered actual cropped sprites behind road crests. The synthetic files and test-only preload were not committed. This validates infrastructure only; `WebGame/public/assets/props/` still has no production Batch B art, so M5.9 remains open and the normal runtime keeps M4 procedural fallback presentation."
+          if old not in acceptance:
+              raise SystemExit('roadside acceptance block not found')
+          acceptance = acceptance.replace(old, new, 1)
+          acceptance_path.write_text(acceptance)
+          PY
+
+      - name: Commit docs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Docs/05-Planning/M5-Presentation-and-Production-Assets.md Docs/05-Planning/Task-Backlog.md Docs/06-Quality/M5-Presentation-Acceptance.md
+          git commit -m "docs: record M5C roadside infrastructure evidence"
+          git push origin HEAD:feat/m5c-roadside-sprites
