@@ -1,3 +1,4 @@
+# Rerun after projected-segment crest-clipping fix.
 name: M5C Roadside Browser Smoke
 
 on:
@@ -107,7 +108,6 @@ jobs:
             sleep 1
           done
           node --input-type=module <<'NODE'
-          import assert from 'node:assert/strict';
           import puppeteer from 'puppeteer-core';
 
           const browser = await puppeteer.launch({
@@ -175,14 +175,14 @@ jobs:
                 }
               }
               if (visible.length > 1) orderingSamples += 1;
-              if (representative === null && visible.length >= 3) representative = { branch, distance, visible };
+              if (representative === null && visible.length >= 3) representative = { branch, distance };
               return visible;
             }
 
             for (const branch of ['safe', 'risky']) {
               scene.road.selectBranch(branch);
               const end = scene.road.destinationDistance;
-              for (let distance = 0; distance < end; distance += 6000) {
+              for (let distance = 0; distance < end; distance += 3000) {
                 renderAt(branch, distance);
               }
             }
@@ -193,7 +193,6 @@ jobs:
             if (!foundCrop) throw new Error('no crest-cropped sprite encountered during route scan');
             if (orderingSamples < 5) throw new Error(`insufficient ordering samples: ${orderingSamples}`);
 
-            // Stable route state must reproduce the exact same projected descriptors.
             const sample = representative ?? { branch: 'safe', distance: 10000 };
             const first = renderAt(sample.branch, sample.distance);
             const second = renderAt(sample.branch, sample.distance);
