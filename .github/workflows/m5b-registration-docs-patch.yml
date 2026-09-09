@@ -1,0 +1,114 @@
+name: M5B Registration Docs Patch
+
+on:
+  push:
+    branches:
+      - fix/m5b-vehicle-registration
+    paths:
+      - '.github/workflows/m5b-registration-docs-patch.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: fix/m5b-vehicle-registration
+
+      - name: Patch M5 acceptance evidence
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('Docs/06-Quality/M5-Presentation-Acceptance.md')
+          text = path.read_text()
+
+          text = text.replace(
+              '- [ ] all five use compatible `(128,232)` contact registration;\n',
+              '- [x] all five use compatible `(128,232)` contact registration;\n',
+              1,
+          )
+
+          old_player = '''**M5B registration blocker:** automated alpha-bound inspection plus representative 960x540 rendering demonstrates that the committed player exports do not currently place visible road-contact pixels near the frozen `Y=232` anchor. Measured visible alpha bounds are:
+
+```text
+hard_left  bottom ~201
+left       bottom ~211
+center     bottom ~213
+right      bottom ~211
+hard_right bottom ~202
+```
+
+The Center frame therefore ends roughly **19 px above** the canonical contact line, and representative gameplay visibly shows the vehicle floating above the road-contact position. Several steering frames also touch the horizontal canvas boundary. Do **not** hide this source defect through per-texture runtime offsets or per-state scale compensation; re-register/re-export the source family against the frozen 256x256 contract.
+'''
+          new_player = '''**M5B vertical registration correction:** all five player PNGs were re-registered in-source by integer pixel translation only—no resizing, resampling, palette change or runtime offset. Pre-fix measured alpha bottoms and applied translations were:
+
+```text
+hard_left  Y=200 -> +32 px
+left       Y=210 -> +22 px
+center     Y=212 -> +20 px
+right      Y=210 -> +22 px
+hard_right Y=201 -> +31 px
+```
+
+Post-fix analysis confirms every player frame now has visual alpha base `Y=232`, preserving a 23 px transparent margin below the vehicle. A 960x540 production-browser smoke confirmed the existing `(128,232)` Phaser origin places Center and Hard Left on the road without the previous vertical floating. Several non-center player frames still touch the horizontal canvas boundary (`X=0/255`); that is a separate transparent-bound quality issue and is **not** being hidden through runtime offsets or per-state scaling.
+'''
+          if old_player not in text:
+              raise SystemExit('player blocker block not found')
+          text = text.replace(old_player, new_player)
+
+          text = text.replace(
+              '- [ ] player anchor remains stable across all five textures;\n',
+              '- [x] player vertical contact anchor remains stable across all five textures;\n',
+          )
+          text = text.replace(
+              'The browser smoke recorded the actual texture sequence `Center -> Left -> Hard Left` under binary keyboard input and the reverse sequence on release. Player grounding remains blocking, so M5.6/M5.8 are not accepted yet.\n',
+              'The earlier browser smoke recorded the actual texture sequence `Center -> Left -> Hard Left` under binary keyboard input and the reverse sequence on release. Post-fix 960x540 browser rendering confirms the vertical grounding defect is resolved in representative city Center/Hard-Left views. M5.6/M5.8 remain open for horizontal transparent-bound cleanup/full visual approval and human all-zone gameplay-speed readability rather than vertical registration.\n',
+          )
+
+          text = text.replace(
+              '- [ ] all five use `(128,232)`-compatible road-contact registration;\n',
+              '- [x] all five use `(128,232)`-compatible road-contact registration;\n',
+          )
+
+          old_traffic = '''Traffic registration remains an acceptance risk. Measured visible-alpha bottoms vary materially across adjacent yaw states; examples include taxi `204..216`, hatchback `210..228`, van `230..238`, and truck `224..230`. These values are not automatically equivalent to tire contact, but the variance is large enough that final family registration must be corrected/visually approved rather than compensated by per-texture runtime offsets.
+'''
+          new_traffic = '''Traffic vertical registration has been corrected in-source using the same integer-translation-only rule. Exact pre-fix alpha bottoms / translations to the frozen `Y=232` visual base were:
+
+```text
+taxi      HL 203 +29 | L 208 +24 | C 215 +17 | R 211 +21 | HR 203 +29
+hatchback HL 210 +22 | L 227  +5 | C 226  +6 | R 226  +6 | HR 209 +23
+van       HL 229  +3 | L 234  -2 | C 237  -5 | R 236  -4 | HR 230  +2
+truck     HL 223  +9 | L 227  +5 | C 229  +3 | R 227  +5 | HR 223  +9
+```
+
+Post-fix analysis confirms all twenty traffic frames end at visual alpha base `Y=232` with the original visible RGBA palette preserved. This resolves the vertical contact-line variance without adding per-texture runtime offsets. Human approval of apparent scale/yaw continuity and horizontal transparent bounds remains separate M5.8 work.
+'''
+          if old_traffic not in text:
+              raise SystemExit('traffic blocker block not found')
+          text = text.replace(old_traffic, new_traffic)
+
+          path.write_text(text)
+
+          backlog = Path('Docs/05-Planning/Task-Backlog.md')
+          b = backlog.read_text()
+          marker = '**M5A status:** production foundation complete. Canonical palette tokens, pixel-art config, runtime asset tree, Boot preload/error boundary, landscape-only browser shell, touch-layout contract and player visual-steering contract are established and validated. Production touch controls, final HUD clipping validation and Batch A+ assets remain open. Traffic production now additionally follows the `256 x 256` five-yaw contract in [`../01-Design/Traffic-Sprite-Angle-Specification.md`](../01-Design/Traffic-Sprite-Angle-Specification.md).'
+          replacement = marker + '\n\n**M5B registration status:** all 25 committed player/traffic PNGs have been re-registered in-source to the canonical visual base `Y=232` using integer pixel translation only; post-fix asset analysis and representative 960x540 browser rendering pass. M5.6/M5.8 stay open for horizontal transparent-bound cleanup, remaining family visual approval and human all-zone gameplay-speed readability.'
+          if marker not in b:
+              raise SystemExit('M5A backlog marker not found')
+          b = b.replace(marker, replacement)
+          backlog.write_text(b)
+          PY
+
+      - name: Commit acceptance update
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Docs/05-Planning/Task-Backlog.md Docs/06-Quality/M5-Presentation-Acceptance.md
+          git diff --cached --quiet && { echo 'no docs changes'; exit 1; }
+          git commit -m 'docs: record corrected vehicle contact registration'
+          git push origin HEAD:fix/m5b-vehicle-registration
