@@ -10,7 +10,7 @@ export type EnvironmentZone =
   | 'tunnel';
 
 type LandmarkId = 'route-choice' | 'tunnel-entry' | 'tunnel-exit' | 'destination';
-type PropKind =
+export type RoadsideSpriteKind =
   | 'light'
   | 'rail'
   | 'pole'
@@ -70,6 +70,14 @@ export interface RoadObjectProjection {
   clipY: number;
 }
 
+export interface RoadsideSpriteProjection extends RoadObjectProjection {
+  kind: RoadsideSpriteKind;
+  side: -1 | 1;
+  zone: EnvironmentZone;
+  worldWidth: number;
+  worldHeight: number;
+}
+
 interface ZoneStyle {
   groundA: number;
   groundB: number;
@@ -77,7 +85,7 @@ interface ZoneStyle {
   rumbleB: number;
   spacing: number;
   propOffset: number;
-  props: readonly PropKind[];
+  props: readonly RoadsideSpriteKind[];
 }
 
 const SEGMENT_LENGTH = 200;
@@ -91,6 +99,18 @@ const CURVE_WORLD_SCALE = 8;
 const LANE_COUNT = 3;
 const ROUTE_START_POSITION = 1200;
 const BRANCH_PROMPT_LEAD_DISTANCE = 24000;
+
+const EMPTY_ROADSIDE_SPRITE_KINDS: ReadonlySet<RoadsideSpriteKind> = new Set();
+const PROP_WORLD_SIZE: Record<RoadsideSpriteKind, readonly [number, number]> = {
+  light: [160, 1000],
+  rail: [850, 220],
+  pole: [80, 900],
+  tree: [620, 1000],
+  rock: [760, 620],
+  chevron: [300, 460],
+  sign: [680, 720],
+  reflector: [95, 160],
+};
 
 const NC = {
   n0: 0x080c18,
@@ -208,6 +228,7 @@ export class Road {
   private destinationPosition = 0;
   private activeBranch: RouteBranch = 'safe';
   private projectionFrame = 0;
+  private readonly visibleSegments: RoadSegment[] = [];
 
   constructor() {
     this.rebuild('safe');
@@ -235,6 +256,10 @@ export class Road {
 
   get branch(): RouteBranch {
     return this.activeBranch;
+  }
+
+  get roadsideSpritePoolSize(): number {
+    return DRAW_DISTANCE;
   }
 
   selectBranch(branch: RouteBranch): void {
@@ -288,7 +313,11 @@ export class Road {
     );
   }
 
-  render(graphics: Phaser.GameObjects.Graphics, view: RoadRenderView): void {
+  render(
+    graphics: Phaser.GameObjects.Graphics,
+    view: RoadRenderView,
+    spriteBackedKinds: ReadonlySet<RoadsideSpriteKind> = EMPTY_ROADSIDE_SPRITE_KINDS,
+  ): void {
     const width = view.viewportWidth;
     const height = view.viewportHeight;
     const playerZone = this.zoneAt(view.playerPosition);
@@ -300,7 +329,8 @@ export class Road {
     let roadOffset = 0;
     let curveVelocity = -this.segments[cameraIndex].curve * CURVE_WORLD_SCALE * cameraFraction;
     let maxVisibleY = height;
-    const visible: RoadSegment[] = [];
+    const visible = this.visibleSegments;
+    visible.length = 0;
 
     this.projectionFrame += 1;
     graphics.clear();
@@ -350,7 +380,42 @@ export class Road {
     }
 
     drawTunnel(graphics, visible, width, height, playerZone === 'tunnel');
-    drawRoadside(graphics, visible);
+    drawRoadside(graphics, visible, spriteBackedKinds);
+  }
+
+  collectRoadsideSprites(
+    output: RoadsideSpriteProjection[],
+    spriteBackedKinds: ReadonlySet<RoadsideSpriteKind>,
+  ): number {
+    let count = 0;
+
+    for (let i = this.visibleSegments.length - 1; i >= 0 && count < output.length; i -= 1) {
+      const segment = this.visibleSegments[i];
+      const style = ZONE_STYLE[segment.zone];
+      const hash = hash32(segment.index, zoneSalt(segment.zone));
+      if ((segment.index + (hash % style.spacing)) % style.spacing !== 0) continue;
+
+      const kind = style.props[(hash >>> 4) % style.props.length];
+      if (!usesProductionRoadsideSprite(kind, segment.zone, spriteBackedKinds)) continue;
+
+      let side: -1 | 1 = hash % 2 === 0 ? -1 : 1;
+      if (kind === 'chevron' && Math.abs(segment.curve) > 0.08) {
+        side = segment.curve > 0 ? 1 : -1;
+      }
+      const variation = 0.88 + ((hash >>> 9) % 30) / 100;
+      const target = output[count];
+      if (!projectFromSegment(segment, 0.55, style.propOffset * variation * side, target)) continue;
+
+      const [worldWidth, worldHeight] = PROP_WORLD_SIZE[kind];
+      target.kind = kind;
+      target.side = side;
+      target.zone = segment.zone;
+      target.worldWidth = worldWidth;
+      target.worldHeight = worldHeight;
+      count += 1;
+    }
+
+    return count;
   }
 
   private zoneAt(position: number): EnvironmentZone {
@@ -606,6 +671,7 @@ function drawTunnel(
 function drawRoadside(
   graphics: Phaser.GameObjects.Graphics,
   visible: readonly RoadSegment[],
+  spriteBackedKinds: ReadonlySet<RoadsideSpriteKind>,
 ): void {
   const p: RoadObjectProjection = { x: 0, y: 0, cameraZ: 0, pixelsPerWorld: 0, clipY: 0 };
 
@@ -620,6 +686,8 @@ function drawRoadside(
     if ((segment.index + (hash % style.spacing)) % style.spacing !== 0) continue;
 
     const kind = style.props[(hash >>> 4) % style.props.length];
+    if (usesProductionRoadsideSprite(kind, segment.zone, spriteBackedKinds)) continue;
+
     let side = hash % 2 === 0 ? -1 : 1;
     if (kind === 'chevron' && Math.abs(segment.curve) > 0.08) side = segment.curve > 0 ? 1 : -1;
     const variation = 0.88 + ((hash >>> 9) % 30) / 100;
@@ -713,7 +781,7 @@ function drawLandmark(
 function drawProp(
   graphics: Phaser.GameObjects.Graphics,
   p: RoadObjectProjection,
-  kind: PropKind,
+  kind: RoadsideSpriteKind,
   side: number,
   zone: EnvironmentZone,
 ): void {
@@ -721,7 +789,7 @@ function drawProp(
   const bottom = Math.min(p.y, p.clipY);
   if (s <= 0) return;
 
-  const config: Record<PropKind, readonly [number, number, number]> = {
+  const config: Record<RoadsideSpriteKind, readonly [number, number, number]> = {
     light: [160, zone === 'tunnel' ? 520 : 1000, NC.lamp],
     rail: [850, 220, NC.lightMetal],
     pole: [80, 900, NC.n4],
@@ -759,6 +827,14 @@ function drawProp(
   }
 
   graphics.fillRect(p.x - w * 0.5, bottom - h, w, h);
+}
+
+function usesProductionRoadsideSprite(
+  kind: RoadsideSpriteKind,
+  zone: EnvironmentZone,
+  spriteBackedKinds: ReadonlySet<RoadsideSpriteKind>,
+): boolean {
+  return spriteBackedKinds.has(kind) && !(kind === 'light' && zone === 'tunnel');
 }
 
 function zoneSalt(zone: EnvironmentZone): number {
