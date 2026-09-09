@@ -1,0 +1,229 @@
+name: M5C Roadside Browser Smoke
+
+on:
+  push:
+    branches:
+      - feat/m5c-roadside-sprites
+    paths:
+      - '.github/workflows/m5c-roadside-browser-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  browser-smoke:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: WebGame
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.12.0'
+
+      - name: Create synthetic prop textures
+        run: |
+          python3 -m pip install --disable-pip-version-check pillow
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image, ImageDraw
+
+          out = Path('public/assets/props')
+          out.mkdir(parents=True, exist_ok=True)
+          specs = {
+              'prop_streetlight.png': (32, 96, 'light'),
+              'prop_guardrail.png': (128, 32, 'rail'),
+              'prop_tree_cluster_01.png': (80, 112, 'tree'),
+              'prop_rock_cluster_01.png': (96, 72, 'rock'),
+              'prop_chevron.png': (48, 64, 'chevron'),
+          }
+          colors = {
+              'light': (244, 201, 93, 255),
+              'rail': (155, 170, 188, 255),
+              'tree': (52, 74, 100, 255),
+              'rock': (100, 116, 138, 255),
+              'chevron': (255, 204, 51, 255),
+          }
+          for name, (w, h, kind) in specs.items():
+              im = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+              d = ImageDraw.Draw(im)
+              c = colors[kind]
+              if kind == 'tree':
+                  d.polygon([(2,h-1),(w//2,2),(w-3,h-1)], fill=c)
+              elif kind == 'rock':
+                  d.polygon([(2,h-1),(w//4,h//3),(w//2,4),(w-3,h-1)], fill=c)
+              elif kind == 'light':
+                  d.rectangle((w//2-2, 8, w//2+2, h-1), fill=c)
+                  d.rectangle((w//2-2, 5, w-3, 10), fill=c)
+              elif kind == 'chevron':
+                  d.rectangle((2,2,w-3,h-1), fill=c)
+                  d.polygon([(w//4,h//2),(w*3//4,h//3),(w*3//4,h*2//3)], fill=(8,12,24,255))
+              else:
+                  d.rectangle((1, h//3, w-2, h-2), fill=c)
+              im.save(out / name)
+          PY
+
+      - name: Inject test-only preload and game handle
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          boot = Path('src/scenes/BootScene.ts')
+          text = boot.read_text()
+          marker = "    for (const key of CITY_BACKGROUND_TEXTURE_KEYS) {\n      this.load.image(key, CITY_BACKGROUND_TEXTURE_PATHS[key]);\n    }\n"
+          addition = marker + "\n    this.load.image('prop_streetlight', 'assets/props/prop_streetlight.png');\n    this.load.image('prop_guardrail', 'assets/props/prop_guardrail.png');\n    this.load.image('prop_tree_cluster_01', 'assets/props/prop_tree_cluster_01.png');\n    this.load.image('prop_rock_cluster_01', 'assets/props/prop_rock_cluster_01.png');\n    this.load.image('prop_chevron', 'assets/props/prop_chevron.png');\n"
+          if text.count(marker) != 1:
+              raise SystemExit('Boot preload marker mismatch')
+          boot.write_text(text.replace(marker, addition))
+
+          main = Path('src/main.ts')
+          text = main.read_text()
+          old = 'new Phaser.Game(gameConfig);'
+          new = '(window as typeof window & { __m5cGame?: Phaser.Game }).__m5cGame = new Phaser.Game(gameConfig);'
+          if text.count(old) != 1:
+              raise SystemExit('main game marker mismatch')
+          main.write_text(text.replace(old, new))
+          PY
+
+      - name: Build production package
+        run: |
+          npm ci
+          npm run typecheck
+          npm run build
+          npm install --no-save --package-lock=false puppeteer-core@24.16.0
+
+      - name: Validate pooling, ordering, determinism and crest crop
+        run: |
+          mkdir -p /tmp/m5c-roadside-shots
+          python3 -m http.server 4173 --directory dist >/tmp/m5c-roadside-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          for attempt in {1..20}; do
+            curl --fail --silent http://127.0.0.1:4173/ >/dev/null && break
+            sleep 1
+          done
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import puppeteer from 'puppeteer-core';
+
+          const browser = await puppeteer.launch({
+            executablePath: '/usr/bin/google-chrome',
+            headless: true,
+            args: ['--no-sandbox', '--disable-gpu'],
+          });
+          const page = await browser.newPage();
+          await page.setViewport({ width: 960, height: 540, deviceScaleFactor: 1 });
+          await page.goto('http://127.0.0.1:4173/', { waitUntil: 'domcontentloaded' });
+          await page.waitForSelector('canvas');
+          await new Promise((resolve) => setTimeout(resolve, 800));
+
+          const result = await page.evaluate(() => {
+            const game = window.__m5cGame;
+            if (!game) throw new Error('missing test game handle');
+            const scene = game.scene.getScene('Game');
+            game.scene.pause('Game');
+
+            const expectedKinds = ['light', 'rail', 'tree', 'rock', 'chevron'];
+            const actualKinds = [...scene.roadsideSpriteKinds].sort();
+            if (JSON.stringify(actualKinds) !== JSON.stringify([...expectedKinds].sort())) {
+              throw new Error(`unexpected sprite kinds: ${actualKinds.join(',')}`);
+            }
+            if (scene.roadsideSprites.length !== scene.road.roadsideSpritePoolSize) {
+              throw new Error('roadside image pool size mismatch');
+            }
+
+            const poolRefs = scene.roadsideSprites.slice();
+            const foundKinds = new Set();
+            let foundCrop = false;
+            let orderingSamples = 0;
+            let representative = null;
+
+            function renderAt(branch, distance) {
+              scene.road.selectBranch(branch);
+              scene.runState.routeDistance = distance;
+              scene.renderFrame();
+
+              const visible = [];
+              for (let i = 0; i < scene.roadsideSprites.length; i += 1) {
+                const image = scene.roadsideSprites[i];
+                if (!image.visible) continue;
+                const p = scene.roadsideSpriteProjections[i];
+                foundKinds.add(p.kind);
+                if (image.isCropped) foundCrop = true;
+                visible.push({
+                  i,
+                  kind: p.kind,
+                  cameraZ: p.cameraZ,
+                  depth: image.depth,
+                  x: Math.round(p.x * 1000) / 1000,
+                  y: Math.round(p.y * 1000) / 1000,
+                  clipY: Math.round(p.clipY * 1000) / 1000,
+                  cropped: Boolean(image.isCropped),
+                });
+              }
+
+              for (let i = 1; i < visible.length; i += 1) {
+                if (visible[i - 1].cameraZ < visible[i].cameraZ) {
+                  throw new Error('roadside projections are not far-to-near');
+                }
+                if (visible[i - 1].depth >= visible[i].depth) {
+                  throw new Error('roadside sprite depth is not increasing nearward');
+                }
+              }
+              if (visible.length > 1) orderingSamples += 1;
+              if (representative === null && visible.length >= 3) representative = { branch, distance, visible };
+              return visible;
+            }
+
+            for (const branch of ['safe', 'risky']) {
+              scene.road.selectBranch(branch);
+              const end = scene.road.destinationDistance;
+              for (let distance = 0; distance < end; distance += 6000) {
+                renderAt(branch, distance);
+              }
+            }
+
+            if (foundKinds.size !== 5) {
+              throw new Error(`did not encounter all five representative prop kinds: ${[...foundKinds].join(',')}`);
+            }
+            if (!foundCrop) throw new Error('no crest-cropped sprite encountered during route scan');
+            if (orderingSamples < 5) throw new Error(`insufficient ordering samples: ${orderingSamples}`);
+
+            // Stable route state must reproduce the exact same projected descriptors.
+            const sample = representative ?? { branch: 'safe', distance: 10000 };
+            const first = renderAt(sample.branch, sample.distance);
+            const second = renderAt(sample.branch, sample.distance);
+            if (JSON.stringify(first) !== JSON.stringify(second)) {
+              throw new Error('roadside deterministic projection changed between identical renders');
+            }
+
+            for (let i = 0; i < poolRefs.length; i += 1) {
+              if (scene.roadsideSprites[i] !== poolRefs[i]) throw new Error(`roadside pool object replaced at ${i}`);
+            }
+
+            return {
+              poolSize: poolRefs.length,
+              foundKinds: [...foundKinds].sort(),
+              foundCrop,
+              orderingSamples,
+              sampleBranch: sample.branch,
+              sampleDistance: sample.distance,
+              visibleSampleCount: first.length,
+            };
+          });
+
+          console.log(result);
+          await page.screenshot({ path: '/tmp/m5c-roadside-shots/roadside-synthetic.png' });
+          await browser.close();
+          NODE
+
+      - name: Upload representative render
+        uses: actions/upload-artifact@v4
+        with:
+          name: m5c-roadside-browser-render
+          path: /tmp/m5c-roadside-shots/*.png
+          if-no-files-found: error
