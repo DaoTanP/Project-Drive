@@ -1,0 +1,206 @@
+name: M5B Production Browser Smoke
+
+on:
+  push:
+    branches:
+      - feat/m5b-batch-a-assets
+    paths:
+      - 'WebGame/src/**'
+      - 'WebGame/public/assets/player/**'
+      - 'WebGame/public/assets/traffic/**'
+      - 'WebGame/public/assets/backgrounds/**'
+      - '.github/workflows/m5b-browser-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  browser-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.12.0'
+          package-manager-cache: false
+      - name: Expose test-only game handle
+        working-directory: WebGame
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('src/main.ts')
+          text = path.read_text()
+          text = text.replace(
+              'new Phaser.Game(gameConfig);',
+              '(window as typeof window & { __m5bGame?: Phaser.Game }).__m5bGame = new Phaser.Game(gameConfig);',
+          )
+          path.write_text(text)
+          PY
+      - name: Build production package
+        working-directory: WebGame
+        run: |
+          npm ci
+          npm run typecheck
+          npm run build
+          npm install --no-save --package-lock=false puppeteer-core@24.16.0
+      - name: Exercise Batch A presentation
+        working-directory: WebGame
+        run: |
+          mkdir -p /tmp/m5b-shots
+          python3 -m http.server 4173 --directory dist >/tmp/m5b-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          for attempt in {1..20}; do
+            curl --fail --silent http://127.0.0.1:4173/ >/dev/null && break
+            sleep 1
+          done
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import puppeteer from 'puppeteer-core';
+
+          const browser = await puppeteer.launch({
+            executablePath: '/usr/bin/google-chrome',
+            headless: true,
+            args: ['--no-sandbox', '--disable-gpu'],
+          });
+          const page = await browser.newPage();
+          await page.setViewport({ width: 960, height: 540, deviceScaleFactor: 1 });
+          await page.goto('http://127.0.0.1:4173/', { waitUntil: 'domcontentloaded' });
+          await page.waitForSelector('canvas');
+          await new Promise((resolve) => setTimeout(resolve, 700));
+
+          const initial = await page.evaluate(() => {
+            const game = window.__m5bGame;
+            if (!game) throw new Error('missing test game handle');
+            const scene = game.scene.getScene('Game');
+            if (!scene) throw new Error('Game scene missing');
+            return {
+              active: game.scene.isActive('Game'),
+              playerTexture: scene.playerSprite.texture.key,
+              trafficPool: scene.trafficSprites.length,
+              visibleTraffic: scene.trafficSprites.filter((image) => image.visible).map((image) => image.texture.key),
+              farVisible: scene.cityBackgroundFar.visible,
+              midVisible: scene.cityBackgroundMid.visible,
+              farTileX: scene.cityBackgroundFar.tilePositionX,
+              midTileX: scene.cityBackgroundMid.tilePositionX,
+            };
+          });
+          assert.equal(initial.active, true);
+          assert.equal(initial.playerTexture, 'player_rear_center');
+          assert.equal(initial.trafficPool, 12);
+          assert.ok(initial.visibleTraffic.length > 0, 'expected projected production traffic sprites');
+          assert.ok(initial.visibleTraffic.every((key) => key.startsWith('traffic_')));
+          assert.equal(initial.farVisible, true);
+          assert.equal(initial.midVisible, true);
+
+          await page.keyboard.down('ArrowLeft');
+          const steeringTextures = [];
+          for (let i = 0; i < 18; i += 1) {
+            await new Promise((resolve) => setTimeout(resolve, 12));
+            steeringTextures.push(await page.evaluate(() => window.__m5bGame.scene.getScene('Game').playerSprite.texture.key));
+          }
+          await page.keyboard.up('ArrowLeft');
+          assert.ok(steeringTextures.includes('player_rear_left'), `moderate left pose missing: ${steeringTextures.join(',')}`);
+          assert.ok(steeringTextures.includes('player_rear_hard_left'), `hard left pose missing: ${steeringTextures.join(',')}`);
+
+          const releaseTextures = [];
+          for (let i = 0; i < 18; i += 1) {
+            await new Promise((resolve) => setTimeout(resolve, 12));
+            releaseTextures.push(await page.evaluate(() => window.__m5bGame.scene.getScene('Game').playerSprite.texture.key));
+          }
+          assert.ok(releaseTextures.includes('player_rear_left'), 'release must traverse moderate left pose');
+          assert.equal(releaseTextures.at(-1), 'player_rear_center');
+
+          const parallax = await page.evaluate(() => {
+            const scene = window.__m5bGame.scene.getScene('Game');
+            scene.runState.routeDistance = 10000;
+            scene.renderFrame();
+            return {
+              far: scene.cityBackgroundFar.tilePositionX,
+              mid: scene.cityBackgroundMid.tilePositionX,
+              farVisible: scene.cityBackgroundFar.visible,
+              midVisible: scene.cityBackgroundMid.visible,
+            };
+          });
+          assert.equal(parallax.farVisible, true);
+          assert.equal(parallax.midVisible, true);
+          assert.ok(parallax.far > 0 && parallax.mid > parallax.far, 'mid parallax must move faster than far');
+
+          async function seekZone(zone, branch = 'safe') {
+            return page.evaluate(({ zone, branch }) => {
+              const scene = window.__m5bGame.scene.getScene('Game');
+              scene.road.selectBranch(branch);
+              let found = -1;
+              for (let distance = 0; distance < scene.road.destinationDistance; distance += 2000) {
+                if (scene.road.zoneAtRouteDistance(distance) === zone) {
+                  found = distance;
+                  break;
+                }
+              }
+              if (found < 0) throw new Error(`zone not found: ${zone}/${branch}`);
+              scene.runState.routeDistance = found;
+              const cars = scene.traffic.cars;
+              cars.forEach((car, index) => {
+                car.z = found + 4200 + index * 3800;
+                car.passResolved = false;
+                car.nearMissArmed = false;
+              });
+              scene.renderFrame();
+              return {
+                distance: found,
+                farVisible: scene.cityBackgroundFar.visible,
+                midVisible: scene.cityBackgroundMid.visible,
+                playerTexture: scene.playerSprite.texture.key,
+                visibleTraffic: scene.trafficSprites.filter((image) => image.visible).map((image) => ({
+                  key: image.texture.key,
+                  scaleX: image.scaleX,
+                  scaleY: image.scaleY,
+                  cropHeight: image.isCropped ? image._crop?.height ?? null : null,
+                })),
+              };
+            }, { zone, branch });
+          }
+
+          await page.evaluate(() => {
+            const scene = window.__m5bGame.scene.getScene('Game');
+            scene.runState.routeDistance = 10000;
+            scene.road.selectBranch('safe');
+            const cars = scene.traffic.cars;
+            cars.forEach((car, index) => { car.z = 10000 + 4200 + index * 3800; });
+            scene.renderFrame();
+          });
+          await page.screenshot({ path: '/tmp/m5b-shots/city.png' });
+
+          const rural = await seekZone('rural', 'safe');
+          assert.equal(rural.farVisible, false);
+          assert.equal(rural.midVisible, false);
+          await page.screenshot({ path: '/tmp/m5b-shots/rural.png' });
+
+          const forest = await seekZone('forest', 'safe');
+          assert.equal(forest.farVisible, false);
+          assert.ok(forest.visibleTraffic.length > 0);
+          assert.ok(forest.visibleTraffic.every((item) => item.key.startsWith('traffic_')));
+          await page.screenshot({ path: '/tmp/m5b-shots/forest.png' });
+
+          const pass = await seekZone('mountain-pass', 'risky');
+          assert.equal(pass.farVisible, false);
+          assert.ok(pass.visibleTraffic.length > 0);
+          await page.screenshot({ path: '/tmp/m5b-shots/mountain-pass.png' });
+
+          const tunnel = await seekZone('tunnel', 'risky');
+          assert.equal(tunnel.farVisible, false);
+          assert.equal(tunnel.midVisible, false);
+          assert.ok(tunnel.visibleTraffic.length > 0);
+          await page.screenshot({ path: '/tmp/m5b-shots/tunnel.png' });
+
+          console.log({ initial, steeringTextures, releaseTextures, parallax, rural, forest, pass, tunnel });
+          await browser.close();
+          NODE
+      - name: Upload representative renders
+        uses: actions/upload-artifact@v4
+        with:
+          name: m5b-representative-renders
+          path: /tmp/m5b-shots/*.png
+          if-no-files-found: error
