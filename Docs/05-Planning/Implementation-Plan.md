@@ -99,11 +99,18 @@ Exit criteria:
 
 **Goal:** minigame is usable as a polished standalone web build with production assets replacing placeholders.
 
+Vehicle art contracts:
+
+- player: five `256 x 256` FLAT steering frames;
+- traffic: every production traffic visual uses a complete five-yaw family at `256 x 256` per source frame, following [`../01-Design/Traffic-Sprite-Angle-Specification.md`](../01-Design/Traffic-Sprite-Angle-Specification.md);
+- traffic yaw remains presentation-only and does not create new AI/physics/collision states.
+
 Deliverables:
 - touch controls;
 - optional gamepad support if low-risk;
 - HUD polish;
-- player/traffic art pass;
+- player production art pass;
+- traffic production art pass with at least three complete five-yaw identities and a standard target of taxi + hatchback + van + truck = 20 traffic frames;
 - approximately 15–18 shared roadside/environment props supporting all five zones;
 - approximately 5–7 shared background/parallax images total;
 - final environment composition/readability pass;
@@ -114,8 +121,10 @@ Deliverables:
 Exit criteria:
 - complete run is playable on target mobile browser/WebView class hardware;
 - controls remain readable at common aspect ratios;
+- every shipping traffic identity has all five accepted `256 x 256` yaw frames and stable road-contact registration;
+- traffic yaw texture selection does not change road-space collision/near-miss behavior;
 - all five zones remain distinct while using one coherent palette/asset vocabulary;
-- runtime art remains within the revised small asset budget unless a reviewed exception exists.
+- runtime art remains within the revised **~49–67 image** budget unless a reviewed exception exists.
 
 ## Milestone 6 — Unity host integration
 
