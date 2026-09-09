@@ -1,0 +1,60 @@
+name: M5B Horizontal Safe Fix
+
+on:
+  push:
+    branches:
+      - fix/m5b-horizontal-bounds
+    paths:
+      - '.github/workflows/m5b-horizontal-safe-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: fix/m5b-horizontal-bounds
+
+      - name: Install Pillow
+        run: python -m pip install --disable-pip-version-check pillow
+
+      - name: Shift truck Left one pixel right
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          from PIL import Image
+
+          path = Path('WebGame/public/assets/traffic/traffic_truck_rear_left.png')
+          im = Image.open(path).convert('RGBA')
+          alpha = im.getchannel('A')
+          before = alpha.getbbox()
+          if before != (0, 33, 253, 233):
+              raise SystemExit(f'unexpected pre-fix bbox: {before}')
+
+          out = Image.new('RGBA', im.size, (0,0,0,0))
+          out.alpha_composite(im, (1,0))
+          after = out.getchannel('A').getbbox()
+          if after != (1, 33, 254, 233):
+              raise SystemExit(f'unexpected post-fix bbox: {after}')
+
+          before_colors = set(im.getdata()) - {(0,0,0,0)}
+          after_colors = set(out.getdata()) - {(0,0,0,0)}
+          if before_colors != after_colors:
+              raise SystemExit('visible RGBA palette changed')
+
+          out.save(path)
+          print('truck Left: bbox (0,33)-(252,232) -> (1,33)-(253,232); dx=+1')
+          PY
+
+      - name: Commit source correction
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add WebGame/public/assets/traffic/traffic_truck_rear_left.png
+          git diff --cached --quiet && { echo 'expected PNG change missing'; exit 1; }
+          git commit -m 'fix: add safe horizontal margin to truck left sprite'
+          git push origin HEAD:fix/m5b-horizontal-bounds
