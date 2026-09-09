@@ -6,6 +6,8 @@ on:
       - fix/m5b-horizontal-bounds
     paths:
       - '.github/workflows/m5b-horizontal-bounds-analysis.yml'
+      - 'WebGame/public/assets/player/*.png'
+      - 'WebGame/public/assets/traffic/*.png'
 
 permissions:
   contents: read
@@ -37,13 +39,14 @@ jobs:
               'truck': sorted((root / 'traffic').glob('traffic_truck_rear_*.png')),
           }
           yaw_order = ['hard_left', 'left', 'center', 'right', 'hard_right']
+          suffix_order = ['hard_left', 'hard_right', 'left', 'right', 'center']
 
           def yaw_of(path):
               stem = path.stem
-              for y in yaw_order:
+              for y in suffix_order:
                   if stem.endswith('_' + y):
                       return y
-              return stem
+              raise ValueError(f'unknown yaw suffix: {path}')
 
           for k in groups:
               groups[k] = sorted(groups[k], key=lambda p: yaw_order.index(yaw_of(p)))
@@ -65,8 +68,9 @@ jobs:
           font = ImageFont.load_default()
 
           for family, paths in groups.items():
+              if len(paths) != 5:
+                  raise SystemExit(f'{family}: expected 5 frames, got {len(paths)}')
               sheet = Image.new('RGBA', (5 * 320, 344), (18, 18, 24, 255))
-              draw_sheet = ImageDraw.Draw(sheet)
               for i, path in enumerate(paths):
                   im = Image.open(path).convert('RGBA')
                   if im.size != (256, 256):
@@ -82,13 +86,11 @@ jobs:
                   right_ys = [y for y in range(256) if px[255, y] > 0]
                   near_left = sum(1 for x in range(4) for y in range(256) if px[x, y] > 0)
                   near_right = sum(1 for x in range(252,256) for y in range(256) if px[x, y] > 0)
-                  edge_count = len(left_ys) + len(right_ys)
-                  edge_span = 0
-                  if left_ys:
-                      edge_span = max(edge_span, max(left_ys) - min(left_ys) + 1)
-                  if right_ys:
-                      edge_span = max(edge_span, max(right_ys) - min(right_ys) + 1)
-                  likely_clip = edge_count >= 3 or max_run(left_ys) >= 3 or max_run(right_ys) >= 3
+                  likely_clip = (
+                      len(left_ys) + len(right_ys) >= 3
+                      or max_run(left_ys) >= 3
+                      or max_run(right_ys) >= 3
+                  )
                   rows.append({
                       'family': family,
                       'yaw': yaw_of(path),
@@ -111,17 +113,19 @@ jobs:
                   panel = Image.new('RGBA', (320, 320), (24, 24, 32, 255))
                   panel.alpha_composite(im, (32, 32))
                   d = ImageDraw.Draw(panel)
-                  # source canvas border and registration guides
                   d.rectangle((31,31,288,288), outline=(110,110,125,255), width=1)
-                  d.line((32+128,32,32+128,287), fill=(80,180,255,160), width=1)
-                  d.line((32,32+232,287,32+232), fill=(80,255,140,160), width=1)
-                  # highlight any source pixels that touch horizontal edge
+                  d.line((160,32,160,287), fill=(80,180,255,160), width=1)
+                  d.line((32,264,287,264), fill=(80,255,140,160), width=1)
                   for y in left_ys:
                       d.point((32,32+y), fill=(255,40,80,255))
                   for y in right_ys:
                       d.point((287,32+y), fill=(255,40,80,255))
-                  label = f"{yaw_of(path)}  L{x0} R{255-x1}  edge {len(left_ys)}/{len(right_ys)}"
-                  d.text((36, 296), label, font=font, fill=(245,245,245,255))
+                  d.text(
+                      (36, 296),
+                      f"{yaw_of(path)}  L{x0} R{255-x1}  edge {len(left_ys)}/{len(right_ys)}",
+                      font=font,
+                      fill=(245,245,245,255),
+                  )
                   sheet.alpha_composite(panel, (i*320, 0))
               sheet.save(out / f'{family}_horizontal_bounds.png')
 
