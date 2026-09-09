@@ -1,5 +1,13 @@
 import type Phaser from 'phaser';
 
+import {
+  TRAFFIC_ANCHOR_X,
+  TRAFFIC_ANCHOR_Y,
+  TRAFFIC_SOURCE_SIZE,
+  trafficTextureKey,
+  type TrafficVisualId,
+  type TrafficYawId,
+} from '../config';
 import type { Road, RoadObjectProjection } from './Road';
 
 export type TrafficType = 'car' | 'van' | 'truck';
@@ -18,6 +26,7 @@ export interface TrafficRenderView {
 
 interface TrafficCar {
   type: TrafficType;
+  visual: TrafficVisualId;
   roadX: number;
   z: number;
   speed: number;
@@ -33,9 +42,12 @@ interface TrafficTuning {
   speedRetention: number;
   worldWidth: number;
   worldHeight: number;
-  color: number;
-  windowColor: number;
 }
+
+type TrafficSpawn =
+  | { type: 'car'; visual: 'taxi' | 'hatchback'; roadX: number }
+  | { type: 'van'; visual: 'van'; roadX: number }
+  | { type: 'truck'; visual: 'truck'; roadX: number };
 
 const COLLISION_LONGITUDINAL = 260;
 const NEAR_MISS_LONGITUDINAL = 560;
@@ -44,6 +56,9 @@ const RECYCLE_BEHIND_DISTANCE = 1200;
 const INITIAL_SPAWN_DISTANCE = 4200;
 const INITIAL_SPACING = 4200;
 const RECYCLE_GAPS = [3600, 4400, 4000, 5000] as const;
+const HEADING_SAMPLE_DISTANCE = 600;
+const MODERATE_YAW_SLOPE = 0.07;
+const HARD_YAW_SLOPE = 0.22;
 
 const TUNING: Record<TrafficType, TrafficTuning> = {
   car: {
@@ -53,8 +68,6 @@ const TUNING: Record<TrafficType, TrafficTuning> = {
     speedRetention: 0.68,
     worldWidth: 420,
     worldHeight: 590,
-    color: 0x4f9da6,
-    windowColor: 0xbad8dc,
   },
   van: {
     speed: 900,
@@ -63,8 +76,6 @@ const TUNING: Record<TrafficType, TrafficTuning> = {
     speedRetention: 0.58,
     worldWidth: 500,
     worldHeight: 720,
-    color: 0xd7a652,
-    windowColor: 0xe8d8ad,
   },
   truck: {
     speed: 720,
@@ -73,24 +84,22 @@ const TUNING: Record<TrafficType, TrafficTuning> = {
     speedRetention: 0.48,
     worldWidth: 560,
     worldHeight: 800,
-    color: 0xc6626a,
-    windowColor: 0xe4a4aa,
   },
 };
 
-const PATTERN: readonly { type: TrafficType; roadX: number }[] = [
-  { type: 'car', roadX: -0.52 },
-  { type: 'van', roadX: 0.12 },
-  { type: 'truck', roadX: 0.64 },
-  { type: 'car', roadX: 0.48 },
-  { type: 'car', roadX: -0.08 },
-  { type: 'van', roadX: -0.62 },
-  { type: 'truck', roadX: 0.06 },
-  { type: 'car', roadX: 0.7 },
-  { type: 'van', roadX: 0.42 },
-  { type: 'car', roadX: -0.72 },
-  { type: 'truck', roadX: -0.36 },
-  { type: 'car', roadX: 0.24 },
+const PATTERN: readonly TrafficSpawn[] = [
+  { type: 'car', visual: 'taxi', roadX: -0.52 },
+  { type: 'van', visual: 'van', roadX: 0.12 },
+  { type: 'truck', visual: 'truck', roadX: 0.64 },
+  { type: 'car', visual: 'hatchback', roadX: 0.48 },
+  { type: 'car', visual: 'taxi', roadX: -0.08 },
+  { type: 'van', visual: 'van', roadX: -0.62 },
+  { type: 'truck', visual: 'truck', roadX: 0.06 },
+  { type: 'car', visual: 'hatchback', roadX: 0.7 },
+  { type: 'van', visual: 'van', roadX: 0.42 },
+  { type: 'car', visual: 'taxi', roadX: -0.72 },
+  { type: 'truck', visual: 'truck', roadX: -0.36 },
+  { type: 'car', visual: 'hatchback', roadX: 0.24 },
 ];
 
 export class Traffic {
@@ -101,14 +110,20 @@ export class Traffic {
     speedRetention: 1,
     nearMisses: 0,
   };
+  private readonly headingNear: RoadObjectProjection = createProjection();
+  private readonly headingFar: RoadObjectProjection = createProjection();
   private recyclePatternIndex = PATTERN.length;
   private recycleGapIndex = 0;
   private gapScale = 1;
 
   constructor() {
     this.cars = PATTERN.map((spawn, index) =>
-      createCar(spawn.type, spawn.roadX, INITIAL_SPAWN_DISTANCE + index * INITIAL_SPACING),
+      createCar(spawn, INITIAL_SPAWN_DISTANCE + index * INITIAL_SPACING),
     );
+  }
+
+  get renderPoolSize(): number {
+    return this.cars.length;
   }
 
   setGapScale(scale: number): void {
@@ -171,21 +186,49 @@ export class Traffic {
   }
 
   render(
-    graphics: Phaser.GameObjects.Graphics,
+    images: readonly Phaser.GameObjects.Image[],
     road: Road,
     view: TrafficRenderView,
   ): void {
-    graphics.clear();
     this.cars.sort((left, right) => right.z - left.z);
+    let imageIndex = 0;
 
     for (const car of this.cars) {
+      if (imageIndex >= images.length) break;
       if (car.z < view.playerRouteDistance - RECYCLE_BEHIND_DISTANCE) continue;
-      if (
-        road.projectObject(view.roadPositionOffset + car.z, car.roadX, car.projection)
-      ) {
-        drawCar(graphics, car);
+
+      const roadPosition = view.roadPositionOffset + car.z;
+      if (!road.projectObject(roadPosition, car.roadX, car.projection)) continue;
+
+      const image = images[imageIndex];
+      const yaw = this.yawForRoadTangent(road, roadPosition);
+      if (renderCarSprite(image, car, yaw)) {
+        imageIndex += 1;
       }
     }
+
+    for (; imageIndex < images.length; imageIndex += 1) {
+      images[imageIndex].setVisible(false);
+    }
+  }
+
+  private yawForRoadTangent(road: Road, roadPosition: number): TrafficYawId {
+    if (
+      !road.projectObject(roadPosition, 0, this.headingNear) ||
+      !road.projectObject(roadPosition + HEADING_SAMPLE_DISTANCE, 0, this.headingFar)
+    ) {
+      return 'center';
+    }
+
+    const verticalTravel = this.headingNear.y - this.headingFar.y;
+    if (verticalTravel <= 1) return 'center';
+
+    const slope = (this.headingFar.x - this.headingNear.x) / verticalTravel;
+    if (slope <= -HARD_YAW_SLOPE) return 'hard_left';
+    if (slope <= -MODERATE_YAW_SLOPE) return 'left';
+    if (slope < MODERATE_YAW_SLOPE) return 'center';
+    if (slope < HARD_YAW_SLOPE) return 'right';
+    return 'hard_right';
   }
 
   private nextGap(): number {
@@ -198,6 +241,7 @@ export class Traffic {
     const spawn = PATTERN[this.recyclePatternIndex % PATTERN.length];
     this.recyclePatternIndex += 1;
     car.type = spawn.type;
+    car.visual = spawn.visual;
     car.roadX = spawn.roadX;
     car.z = z;
     car.speed = TUNING[spawn.type].speed;
@@ -206,58 +250,68 @@ export class Traffic {
   }
 }
 
-function createCar(type: TrafficType, roadX: number, z: number): TrafficCar {
+function createCar(spawn: TrafficSpawn, z: number): TrafficCar {
   return {
-    type,
-    roadX,
+    type: spawn.type,
+    visual: spawn.visual,
+    roadX: spawn.roadX,
     z,
-    speed: TUNING[type].speed,
+    speed: TUNING[spawn.type].speed,
     nearMissArmed: false,
     passResolved: false,
-    projection: { x: 0, y: 0, cameraZ: 0, pixelsPerWorld: 0, clipY: 0 },
+    projection: createProjection(),
   };
 }
 
-function drawCar(graphics: Phaser.GameObjects.Graphics, car: TrafficCar): void {
+function createProjection(): RoadObjectProjection {
+  return { x: 0, y: 0, cameraZ: 0, pixelsPerWorld: 0, clipY: 0 };
+}
+
+function renderCarSprite(
+  image: Phaser.GameObjects.Image,
+  car: TrafficCar,
+  yaw: TrafficYawId,
+): boolean {
   const tuning = TUNING[car.type];
   const p = car.projection;
-  const width = tuning.worldWidth * p.pixelsPerWorld;
-  const height = tuning.worldHeight * p.pixelsPerWorld;
-  if (width < 2 || height < 3) return;
-
-  const left = p.x - width * 0.5;
-  const top = p.y - height;
-  const bottom = Math.min(p.y, p.clipY);
-  const visibleHeight = bottom - top;
-  if (visibleHeight <= 0) return;
-
-  if (bottom > top + height * 0.72) {
-    const shadowTop = top + height * 0.72;
-    graphics.fillStyle(0x10131b, 0.9);
-    graphics.fillRect(
-      left - width * 0.04,
-      shadowTop,
-      width * 1.08,
-      Math.min(height * 0.2, bottom - shadowTop),
-    );
+  const projectedHeight = tuning.worldHeight * p.pixelsPerWorld;
+  if (projectedHeight < 3) {
+    image.setVisible(false);
+    return false;
   }
 
-  graphics.fillStyle(tuning.color, 1);
-  graphics.fillRect(left, top, width, visibleHeight);
-
-  const windowTop = top + height * 0.18;
-  const windowBottom = Math.min(bottom, top + height * 0.48);
-  if (windowBottom > windowTop) {
-    graphics.fillStyle(tuning.windowColor, 1);
-    graphics.fillRect(left + width * 0.18, windowTop, width * 0.64, windowBottom - windowTop);
+  const scale = projectedHeight / TRAFFIC_ANCHOR_Y;
+  if (!Number.isFinite(scale) || scale <= 0) {
+    image.setVisible(false);
+    return false;
   }
 
-  if (bottom > top + height * 0.72) {
-    graphics.fillStyle(0xe8d79a, 1);
-    const lamp = Math.max(1, width * 0.08);
-    graphics.fillRect(left + width * 0.12, bottom - lamp * 1.5, lamp, lamp);
-    graphics.fillRect(left + width * 0.8, bottom - lamp * 1.5, lamp, lamp);
+  const top = p.y - projectedHeight;
+  const clipY = Math.min(p.y, p.clipY);
+  if (clipY <= top) {
+    image.setVisible(false);
+    return false;
   }
+
+  const cropHeight = clamp(
+    TRAFFIC_ANCHOR_Y + (clipY - p.y) / scale,
+    0,
+    TRAFFIC_SOURCE_SIZE,
+  );
+  if (cropHeight <= 0) {
+    image.setVisible(false);
+    return false;
+  }
+
+  image
+    .setTexture(trafficTextureKey(car.visual, yaw))
+    .setOrigin(TRAFFIC_ANCHOR_X / TRAFFIC_SOURCE_SIZE, TRAFFIC_ANCHOR_Y / TRAFFIC_SOURCE_SIZE)
+    .setPosition(p.x, p.y)
+    .setScale(scale)
+    .setCrop(0, 0, TRAFFIC_SOURCE_SIZE, cropHeight)
+    .setVisible(true);
+
+  return true;
 }
 
 function sweptAbsoluteMinimum(start: number, end: number): number {
