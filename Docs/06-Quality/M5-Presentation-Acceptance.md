@@ -4,7 +4,7 @@
 
 This document defines acceptance evidence for M5. It separates implementation completion from visual, mobile and asset-production validation.
 
-Do not mark a production-art task complete because an asset merely loads, because a staging image can be downscaled at runtime, or because a placeholder screenshot looks plausible.
+Do not mark a production-art task complete because an asset merely loads, because a staging image can be scaled at runtime, or because a placeholder screenshot looks plausible.
 
 ## 2. M5A foundation acceptance
 
@@ -16,7 +16,7 @@ Do not mark a production-art task complete because an asset merely loads, becaus
 - [x] No physics/gameplay rules changed as part of presentation foundation.
 - [x] No runtime source module was added solely for palette/assets/touch abstraction.
 
-Existing M4 placeholder render code may retain local semantic aliases temporarily; new production presentation must resolve from the canonical palette rather than introduce another competing master palette.
+Existing M4 placeholder render code may retain local semantic color aliases temporarily; new production presentation must resolve from the canonical palette rather than introduce another competing master palette.
 
 ### Asset layout
 
@@ -78,9 +78,9 @@ The five player frames must pass the authoritative `Player-Sprite-Angle-Specific
 
 ### 4.1 256 x 256 source-format gate
 
-The canonical player production source is now **256 x 256 px per frame** with contact anchor approximately `(128,232)`.
+The canonical player production source is **256 x 256 px per frame** with contact anchor approximately `(128,232)`.
 
-Runtime integration currently satisfies:
+Runtime integration satisfies:
 
 - [x] `BootScene` queues all five canonical player texture keys;
 - [x] `GameScene` renders a Phaser image instead of the procedural player placeholder;
@@ -89,21 +89,12 @@ Runtime integration currently satisfies:
 - [x] texture selection uses smoothed `visualSteer` presentation state;
 - [x] presentation texture selection does not change road-space collision rules.
 
-The currently committed high-resolution PNGs are staging references and are **not accepted production-size assets**:
+Production-size/visual acceptance requires:
 
-- `player_rear_center.png`: observed `1254 x 1254`;
-- `player_rear_right.png`: observed `1254 x 1254`;
-- `player_rear_left.png`: observed `1256 x 1256`;
-- `player_rear_hard_left.png`: observed `1256 x 1256`;
-- `player_rear_hard_right.png`: observed `1256 x 1256`.
-
-Production-size acceptance requires:
-
-- [ ] every required player PNG is exactly `256 x 256`;
+- [ ] every required player PNG is exactly `256 x 256` and visually approved;
 - [ ] transparency is preserved;
 - [ ] all five use compatible `(128,232)` contact registration;
-- [ ] no staging file is accepted merely because runtime downscaling makes it displayable;
-- [ ] the final 256px files pass the full angle/identity/palette checklist.
+- [ ] final files pass the full angle/identity/palette checklist.
 
 ### 4.2 Gameplay visual acceptance
 
@@ -121,12 +112,68 @@ Do not expand to seven yaw states or pitch families before this gate fails for a
 
 ## 5. Traffic Batch A acceptance
 
-- [ ] at least three production traffic visuals are integrated;
-- [ ] visuals map only to existing `car`, `van`, `truck` behavior classes;
+Traffic production follows `Traffic-Sprite-Angle-Specification.md`.
+
+### 5.1 Traffic source/family gate
+
+Every production traffic visual must provide the complete five-yaw family:
+
+```text
+Hard Left -> Left -> Center -> Right -> Hard Right
+```
+
+For every shipping traffic visual:
+
+- [ ] all five PNGs are exact **`256 x 256`** transparent sources;
+- [ ] all five use `(128,232)`-compatible road-contact registration;
+- [ ] canonical naming follows `traffic_<visual>_rear_<yaw>.png`;
+- [ ] camera height/pitch/distance is stable across the family;
+- [ ] yaw progression is monotonic and reads as one vehicle rotating;
+- [ ] rear-plane contraction/side exposure progresses smoothly;
+- [ ] body model, wheelbase, lights, windows, livery and asymmetric details remain physically consistent;
+- [ ] right-side frames are not accepted as incorrect blind bitmap mirrors;
+- [ ] no road, cast ground shadow, background or detached glow is baked into the frames;
+- [ ] source resolution remains `256 x 256` even though runtime display size is depth-projected.
+
+A `Center`-only visual is allowed as a temporary integration placeholder but does not pass final traffic acceptance.
+
+### 5.2 Traffic content count
+
+Reduced minimum traffic content:
+
+```text
+3 visual identities x 5 yaw = 15 traffic frames
+```
+
+Standard initial traffic content:
+
+```text
+taxi + hatchback + van + truck
+= 4 visual identities x 5 yaw
+= 20 traffic frames
+```
+
+Acceptance:
+
+- [ ] at least three complete five-yaw traffic visual identities are integrated;
+- [ ] the standard four-identity set is preferred unless content reduction is explicitly chosen;
+- [ ] taxi/hatchback map only to existing `car` behavior;
+- [ ] van maps only to existing `van` behavior;
+- [ ] truck maps only to existing `truck` behavior;
+- [ ] no yaw state creates a new traffic AI/physics mode.
+
+### 5.3 Runtime presentation and gameplay regression
+
+- [ ] traffic yaw selection derives from presentation/relative heading data rather than `roadX` position alone;
+- [ ] selected traffic yaw does not change longitudinal speed or lateral gameplay state;
+- [ ] selected traffic yaw does not change collision or near-miss envelopes;
 - [ ] silhouettes remain readable at collision and near-miss distances;
 - [ ] sprite scale/anchor stays attached to projected road position;
-- [ ] traffic collision envelopes remain road-space gameplay data, not sprite bounds;
-- [ ] M3 collision/near-miss regression tests still pass after sprite integration.
+- [ ] projected scaling remains crisp with no obvious texture bounce or smoothing;
+- [ ] traffic collision envelopes remain road-space gameplay data, not sprite/alpha bounds;
+- [ ] M3 collision/near-miss regression tests still pass after five-yaw sprite integration.
+
+Do not expand traffic to pitch families or more than five yaw states without documented gameplay evidence.
 
 ## 6. Background acceptance
 
@@ -183,7 +230,8 @@ M5 is complete only when:
 - [ ] optional gamepad has either been added or explicitly skipped without delaying mobile completion;
 - [ ] Batch A/B/C accepted assets are integrated;
 - [ ] all five player production sources are exact `256 x 256` accepted exports;
-- [ ] runtime image count remains within the approved budget or a documented exception exists;
+- [ ] every shipping traffic visual has all five accepted `256 x 256` yaw frames;
+- [ ] the normal runtime image count remains within the revised **~49–67 image** budget or a documented exception exists;
 - [ ] font/music/SFX licensing is known and compatible with packaging;
 - [ ] all five zone compositions remain visually coherent and distinguishable;
 - [ ] pause/resume does not create simulation time jumps;
