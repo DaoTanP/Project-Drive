@@ -1,3 +1,4 @@
+# Temporary browser validation; remove before PR.
 name: M5B Registration Browser Smoke
 
 on:
