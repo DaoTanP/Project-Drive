@@ -59,6 +59,17 @@ export const PLAYER_DISPLAY_SIZE = 256;
 export const PLAYER_ANCHOR_X = 128;
 export const PLAYER_ANCHOR_Y = 232;
 
+export const CITY_BACKGROUND_TEXTURE_KEYS = ['bg_city_far', 'bg_city_mid'] as const;
+export type CityBackgroundTextureKey = (typeof CITY_BACKGROUND_TEXTURE_KEYS)[number];
+
+export const CITY_BACKGROUND_TEXTURE_PATHS: Record<CityBackgroundTextureKey, string> = {
+  bg_city_far: 'assets/backgrounds/bg_city_far.png',
+  bg_city_mid: 'assets/backgrounds/bg_city_mid.png',
+};
+
+export const CITY_BACKGROUND_SOURCE_WIDTH = 2048;
+export const CITY_BACKGROUND_SOURCE_HEIGHT = 512;
+
 export const gameConfig: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   parent: 'game-container',
