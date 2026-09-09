@@ -1,0 +1,131 @@
+name: M5B Vehicle Registration Analysis
+
+on:
+  push:
+    branches:
+      - fix/m5b-vehicle-registration
+    paths:
+      - 'WebGame/public/assets/player/**'
+      - 'WebGame/public/assets/traffic/**'
+      - '.github/workflows/m5b-registration-analysis.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Pillow
+        run: python3 -m pip install --quiet pillow
+
+      - name: Measure and render registration sheets
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image, ImageDraw, ImageFont
+          import json
+
+          ROOT = Path('WebGame/public/assets')
+          OUT = Path('/tmp/registration-analysis')
+          OUT.mkdir(parents=True, exist_ok=True)
+          TARGET_X = 128
+          TARGET_Y = 232
+          families = {
+              'player': sorted((ROOT/'player').glob('player_rear_*.png')),
+              'taxi': sorted((ROOT/'traffic').glob('traffic_taxi_rear_*.png')),
+              'hatchback': sorted((ROOT/'traffic').glob('traffic_hatchback_rear_*.png')),
+              'van': sorted((ROOT/'traffic').glob('traffic_van_rear_*.png')),
+              'truck': sorted((ROOT/'traffic').glob('traffic_truck_rear_*.png')),
+          }
+          yaw_order = ['hard_left', 'left', 'center', 'right', 'hard_right']
+
+          def yaw_key(path):
+              stem = path.stem
+              for i, yaw in enumerate(yaw_order):
+                  if stem.endswith('_' + yaw):
+                      return i
+              return 99
+
+          def alpha_metrics(path):
+              im = Image.open(path).convert('RGBA')
+              if im.size != (256,256):
+                  raise SystemExit(f'{path}: expected 256x256, got {im.size}')
+              alpha = im.getchannel('A')
+              bbox = alpha.getbbox()
+              if not bbox:
+                  raise SystemExit(f'{path}: empty alpha')
+              left, top, right_ex, bottom_ex = bbox
+              right = right_ex - 1
+              bottom = bottom_ex - 1
+              pix = alpha.load()
+              row_counts = []
+              for y in range(256):
+                  c = sum(1 for x in range(256) if pix[x,y] > 0)
+                  row_counts.append(c)
+              # Lowest rows with meaningful support. This helps separate tiny isolated/glow pixels
+              # from a real vehicle base/contact silhouette.
+              thresholds = [1, 2, 4, 8, 12, 16]
+              significant = {}
+              for t in thresholds:
+                  ys = [y for y,c in enumerate(row_counts) if c >= t]
+                  significant[str(t)] = max(ys) if ys else None
+              # Bottom 12 occupied rows, useful for manual wheel/contact inspection.
+              tail = [(y,row_counts[y]) for y in range(max(0,bottom-11), bottom+1)]
+              return im, {
+                  'bbox': [left, top, right, bottom],
+                  'alpha_bottom': bottom,
+                  'delta_alpha_bottom_to_232': TARGET_Y - bottom,
+                  'lowest_row_by_min_pixels': significant,
+                  'bottom_row_counts': tail,
+                  'left_margin': left,
+                  'right_margin': 255-right,
+                  'top_margin': top,
+                  'bottom_margin': 255-bottom,
+              }
+
+          report = {'target': {'x': TARGET_X, 'y': TARGET_Y}, 'families': {}}
+          for family, paths in families.items():
+              paths = sorted(paths, key=yaw_key)
+              if len(paths) != 5:
+                  raise SystemExit(f'{family}: expected 5 frames, found {len(paths)}')
+              entries = []
+              cards = []
+              for path in paths:
+                  im, metrics = alpha_metrics(path)
+                  entries.append({'file': str(path), **metrics})
+
+                  # 2x inspection card with canonical guides + bbox + filename/metrics.
+                  canvas = Image.new('RGBA', (512, 584), (10, 12, 24, 255))
+                  scaled = im.resize((512,512), Image.Resampling.NEAREST)
+                  canvas.alpha_composite(scaled, (0,0))
+                  d = ImageDraw.Draw(canvas)
+                  d.line((TARGET_X*2,0,TARGET_X*2,511), fill=(0,229,255,255), width=1)
+                  d.line((0,TARGET_Y*2,511,TARGET_Y*2), fill=(255,209,102,255), width=2)
+                  l,t,r,b = metrics['bbox']
+                  d.rectangle((l*2,t*2,r*2+1,b*2+1), outline=(255,92,108,255), width=1)
+                  text = f"{path.name}  bbox={metrics['bbox']}  Δbottom→232={metrics['delta_alpha_bottom_to_232']:+d}px"
+                  d.text((8,524), text, fill=(240,244,255,255))
+                  sig = metrics['lowest_row_by_min_pixels']
+                  d.text((8,546), f"lowest rows minPixels 1/4/8/16 = {sig['1']}/{sig['4']}/{sig['8']}/{sig['16']}", fill=(184,194,220,255))
+                  cards.append(canvas)
+
+              report['families'][family] = entries
+              sheet = Image.new('RGBA', (512*5,584), (10,12,24,255))
+              for i, card in enumerate(cards):
+                  sheet.alpha_composite(card, (i*512,0))
+              sheet.save(OUT/f'{family}-registration-sheet.png')
+
+          (OUT/'registration-report.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
+          print(json.dumps(report, indent=2))
+          PY
+
+      - name: Upload registration analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: m5b-registration-analysis
+          path: /tmp/registration-analysis/*
+          if-no-files-found: error
