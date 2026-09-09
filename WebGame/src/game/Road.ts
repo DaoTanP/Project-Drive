@@ -229,6 +229,7 @@ export class Road {
   private activeBranch: RouteBranch = 'safe';
   private projectionFrame = 0;
   private readonly visibleSegments: RoadSegment[] = [];
+  private readonly projectedSegments: RoadSegment[] = [];
 
   constructor() {
     this.rebuild('safe');
@@ -330,7 +331,9 @@ export class Road {
     let curveVelocity = -this.segments[cameraIndex].curve * CURVE_WORLD_SCALE * cameraFraction;
     let maxVisibleY = height;
     const visible = this.visibleSegments;
+    const projected = this.projectedSegments;
     visible.length = 0;
+    projected.length = 0;
 
     this.projectionFrame += 1;
     graphics.clear();
@@ -372,6 +375,7 @@ export class Road {
       curveVelocity += segment.curve * CURVE_WORLD_SCALE;
 
       if (segment.p1.screen.cameraZ <= NEAR_CLIP || segment.p2.screen.cameraZ <= NEAR_CLIP) continue;
+      projected.push(segment);
       if (segment.p2.screen.y >= segment.p1.screen.y || segment.p2.screen.y >= maxVisibleY) continue;
 
       drawRoadSegment(graphics, segment, width);
@@ -389,8 +393,8 @@ export class Road {
   ): number {
     let count = 0;
 
-    for (let i = this.visibleSegments.length - 1; i >= 0 && count < output.length; i -= 1) {
-      const segment = this.visibleSegments[i];
+    for (let i = this.projectedSegments.length - 1; i >= 0 && count < output.length; i -= 1) {
+      const segment = this.projectedSegments[i];
       const style = ZONE_STYLE[segment.zone];
       const hash = hash32(segment.index, zoneSalt(segment.zone));
       if ((segment.index + (hash % style.spacing)) % style.spacing !== 0) continue;
