@@ -21,6 +21,7 @@ This directory is the authoritative documentation root for **Night Courier**.
 - [`01-Design/Environment-Zones-and-Roadside-Composition.md`](01-Design/Environment-Zones-and-Roadside-Composition.md) — authoritative `city` / `rural` / `forest` / `mountain-pass` / `tunnel` composition, transition, deterministic roadside-placement and route-mapping rules.
 - [`01-Design/Art-Direction-and-Color-Palette.md`](01-Design/Art-Direction-and-Color-Palette.md) — authoritative visual identity, Night Courier 20 palette and zone-aware color/value rules.
 - [`01-Design/Asset-Inventory-and-Sprite-Requirements.md`](01-Design/Asset-Inventory-and-Sprite-Requirements.md) — authoritative runtime sprite/audio inventory, procedural-vs-authored rules, asset budgets, naming, pivots and production batches.
+- [`01-Design/Background-Parallax-Asset-Specification.md`](01-Design/Background-Parallax-Asset-Specification.md) — authoritative background/parallax production contract, including frozen `bg_city_far = 2048x512` and `bg_city_mid = 2048x512` dimensions, alpha/seamless-loop rules, vertical composition and acceptance criteria.
 - [`01-Design/Player-Sprite-Angle-Specification.md`](01-Design/Player-Sprite-Angle-Specification.md) — authoritative 256x256 player steering-frame contract: camera, yaw progression, rear-plane width, side exposure, wheel visibility, registration, palette/color cap and per-frame acceptance rules.
 - [`01-Design/Traffic-Sprite-Angle-Specification.md`](01-Design/Traffic-Sprite-Angle-Specification.md) — authoritative 256x256 traffic-frame contract: complete five-yaw families for every production traffic visual, naming, registration, projection-only yaw semantics and collision separation.
 
@@ -45,29 +46,31 @@ This directory is the authoritative documentation root for **Night Courier**.
 7. Roadside/environment placement is deterministic from stable route/segment/zone inputs. High-value landmarks are authored explicitly; ambient props use reusable deterministic placement rules.
 8. Tunnel uses the existing road projection with simple procedural enclosure geometry plus repeated projected fixtures; no separate scene or full 3D tunnel mesh is part of initial scope.
 9. Initial content remains deliberately small: one player vehicle, three traffic behavior classes, approximately **15–18 shared roadside/environment props** and **5–7 shared background/parallax images**.
-10. The revised runtime image budget is approximately **49–67 images**; with all four recommended traffic identities and complete five-yaw families, the expected range is approximately **54–67 images**.
-11. Web technology is **Phaser 4 + TypeScript + Vite**.
-12. No React, ECS, backend, database or external physics engine is part of the initial scope.
-13. Development runs directly in a browser; production is packaged as static offline web content and hosted fullscreen by Unity.
-14. Unity and the web game communicate through a narrow versioned JSON bridge.
-15. Unity owns persistent progression/high scores; the web game owns only the current run state.
-16. The initial code architecture targets **12 TypeScript source files**. Environment-zone or production-presentation work does not authorize generic manager/service layers; extraction requires demonstrated complexity.
-17. The pseudo-3D renderer baseline is **projected fixed-length road segments** compiled from compact authored road sections; external racer references inform algorithms only and do not define Night Courier's source implementation.
-18. Gameplay simulation uses a bounded **60 Hz fixed-step** inside `GameScene` while Phaser owns the render frame; road tessellation and vehicle speed remain independently tunable.
-19. Curves use gradual accumulated lateral displacement with continuity across segment boundaries; hills use elevation in the same projection model with crest occlusion/clipping.
-20. Initial route branching selects a continuation of authored road sections; a generalized simultaneous multi-road/fork renderer is deferred unless readability testing requires it.
-21. The visual baseline is a **late-1990s Japanese-inspired night route** using the custom **Night Courier 20** palette: cool dark neutrals dominate, practical warm lights support readability, and neon is concentrated mainly in city/commercial accents rather than every zone.
-22. Road geometry, lane markings, simple tunnel enclosure, simple HUD bars/text and basic screen effects are procedural; concept-art breadth does not expand gameplay scope automatically.
-23. The player steering set is exactly five separately authored `256 x 256` transparent FLAT frames for the initial release. `Center / Left / Hard Left` use approximately `0° / 10–12° / 20–22°` yaw progression, with symmetric angle metrics on the right; runtime bitmap mirroring is not the production solution because asymmetric hero-car details must remain on their real side.
-24. Player steering frames preserve canonical contact registration around `(128,232)`, stable apparent scale, controlled rear-plane contraction and progressive side/wheel visibility. Each frame follows Night Courier 20 and has a hard cap of **24 visible colors** excluding transparency.
-25. Every production traffic visual uses a complete five-yaw family (`Hard Left / Left / Center / Right / Hard Right`), with every traffic frame exported as an exact `256 x 256` transparent PNG and road-contact registration compatible with `(128,232)`.
-26. Traffic yaw is presentation only. Taxi/hatchback remain `car`, van remains `van`, truck remains `truck`; selected yaw texture never changes road-space collision, near-miss state, speed or AI behavior.
-27. Traffic `256 x 256` is a source/export contract, not a fixed display size. Traffic remains depth-scaled by the pseudo-3D projection/world-size data.
-28. The standard initial traffic set is taxi + hatchback + van + truck, each with five yaw states = **20 traffic frames**. A reduced three-identity set is **15 frames** but every shipping identity still requires all five yaw states for final acceptance.
-29. Initial gameplay presentation is **landscape-only** at a `960 x 540` logical canvas with aspect-preserving FIT scaling; portrait browser fallback asks the user to rotate rather than running a separate portrait gameplay layout.
-30. Touch, keyboard and optional gamepad all normalize into the same `InputState`; touch-specific controls must not leak into `Player` driving logic.
-31. Five player textures are selected from a separate smoothed visual-steering presentation value so binary input can traverse moderate steering poses without changing physics.
-32. Production runtime assets live under the shared `WebGame/public/assets/{player,traffic,props,backgrounds,fx,ui,fonts,audio}` categories. Source art and per-zone asset-pack directories remain outside the runtime structure.
+10. The city background baseline is frozen at **`bg_city_far = 2048 x 512` seamless X** and **`bg_city_mid = 2048 x 512` seamless X / RGBA transparent**. The earlier `2048 x 768` mid-layer exploration size is retired as the production target.
+11. `bg_city_mid` is a mid-distance city/infrastructure strip, not a foreground roadside layer. It should use the lower canvas efficiently with a normal baseline around `Y=480–500`, while road-aligned streetlights/signs/guardrails remain projected props.
+12. The revised runtime image budget is approximately **49–67 images**; with all four recommended traffic identities and complete five-yaw families, the expected range is approximately **54–67 images**.
+13. Web technology is **Phaser 4 + TypeScript + Vite**.
+14. No React, ECS, backend, database or external physics engine is part of the initial scope.
+15. Development runs directly in a browser; production is packaged as static offline web content and hosted fullscreen by Unity.
+16. Unity and the web game communicate through a narrow versioned JSON bridge.
+17. Unity owns persistent progression/high scores; the web game owns only the current run state.
+18. The initial code architecture targets **12 TypeScript source files**. Environment-zone or production-presentation work does not authorize generic manager/service layers; extraction requires demonstrated complexity.
+19. The pseudo-3D renderer baseline is **projected fixed-length road segments** compiled from compact authored road sections; external racer references inform algorithms only and do not define Night Courier's source implementation.
+20. Gameplay simulation uses a bounded **60 Hz fixed-step** inside `GameScene` while Phaser owns the render frame; road tessellation and vehicle speed remain independently tunable.
+21. Curves use gradual accumulated lateral displacement with continuity across segment boundaries; hills use elevation in the same projection model with crest occlusion/clipping.
+22. Initial route branching selects a continuation of authored road sections; a generalized simultaneous multi-road/fork renderer is deferred unless readability testing requires it.
+23. The visual baseline is a **late-1990s Japanese-inspired night route** using the custom **Night Courier 20** palette: cool dark neutrals dominate, practical warm lights support readability, and neon is concentrated mainly in city/commercial accents rather than every zone.
+24. Road geometry, lane markings, simple tunnel enclosure, simple HUD bars/text and basic screen effects are procedural; concept-art breadth does not expand gameplay scope automatically.
+25. The player steering set is exactly five separately authored `256 x 256` transparent FLAT frames for the initial release. `Center / Left / Hard Left` use approximately `0° / 10–12° / 20–22°` yaw progression, with symmetric angle metrics on the right; runtime bitmap mirroring is not the production solution because asymmetric hero-car details must remain on their real side.
+26. Player steering frames preserve canonical contact registration around `(128,232)`, stable apparent scale, controlled rear-plane contraction and progressive side/wheel visibility. Each frame follows Night Courier 20 and has a hard cap of **24 visible colors** excluding transparency.
+27. Every production traffic visual uses a complete five-yaw family (`Hard Left / Left / Center / Right / Hard Right`), with every traffic frame exported as an exact `256 x 256` transparent PNG and road-contact registration compatible with `(128,232)`.
+28. Traffic yaw is presentation only. Taxi/hatchback remain `car`, van remains `van`, truck remains `truck`; selected yaw texture never changes road-space collision, near-miss state, speed or AI behavior.
+29. Traffic `256 x 256` is a source/export contract, not a fixed display size. Traffic remains depth-scaled by the pseudo-3D projection/world-size data.
+30. The standard initial traffic set is taxi + hatchback + van + truck, each with five yaw states = **20 traffic frames**. A reduced three-identity set is **15 frames** but every shipping identity still requires all five yaw states for final acceptance.
+31. Initial gameplay presentation is **landscape-only** at a `960 x 540` logical canvas with aspect-preserving FIT scaling; portrait browser fallback asks the user to rotate rather than running a separate portrait gameplay layout.
+32. Touch, keyboard and optional gamepad all normalize into the same `InputState`; touch-specific controls must not leak into `Player` driving logic.
+33. Five player textures are selected from a separate smoothed visual-steering presentation value so binary input can traverse moderate steering poses without changing physics.
+34. Production runtime assets live under the shared `WebGame/public/assets/{player,traffic,props,backgrounds,fx,ui,fonts,audio}` categories. Source art and per-zone asset-pack directories remain outside the runtime structure.
 
 ## External-reference discipline
 

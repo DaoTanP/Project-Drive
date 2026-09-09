@@ -105,12 +105,20 @@ Vehicle art contracts:
 - traffic: every production traffic visual uses a complete five-yaw family at `256 x 256` per source frame, following [`../01-Design/Traffic-Sprite-Angle-Specification.md`](../01-Design/Traffic-Sprite-Angle-Specification.md);
 - traffic yaw remains presentation-only and does not create new AI/physics/collision states.
 
+Background art contracts follow [`../01-Design/Background-Parallax-Asset-Specification.md`](../01-Design/Background-Parallax-Asset-Specification.md):
+
+- `bg_city_far`: exact `2048 x 512`, horizontally seamless;
+- `bg_city_mid`: exact `2048 x 512`, RGBA transparent, horizontally seamless;
+- the earlier `2048 x 768` city-mid exploration size is retired;
+- `bg_city_near` remains optional and must not be added unless representative gameplay shows that projected roadside props cannot create sufficient near-city depth.
+
 Deliverables:
 - touch controls;
 - optional gamepad support if low-risk;
 - HUD polish;
 - player production art pass;
 - traffic production art pass with at least three complete five-yaw identities and a standard target of taxi + hatchback + van + truck = 20 traffic frames;
+- city far/mid production background pair using the frozen `2048 x 512` contracts;
 - approximately 15–18 shared roadside/environment props supporting all five zones;
 - approximately 5–7 shared background/parallax images total;
 - final environment composition/readability pass;
@@ -123,6 +131,7 @@ Exit criteria:
 - controls remain readable at common aspect ratios;
 - every shipping traffic identity has all five accepted `256 x 256` yaw frames and stable road-contact registration;
 - traffic yaw texture selection does not change road-space collision/near-miss behavior;
+- `bg_city_far` and `bg_city_mid` satisfy their exact dimensions/seamless-loop contract and preserve player/traffic readability in composite;
 - all five zones remain distinct while using one coherent palette/asset vocabulary;
 - runtime art remains within the revised **~49–67 image** budget unless a reviewed exception exists.
 
