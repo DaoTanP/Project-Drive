@@ -93,20 +93,20 @@ Production-size/visual acceptance requires:
 
 - [x] every required player PNG is exactly `256 x 256`;
 - [x] transparency is preserved;
-- [ ] all five use compatible `(128,232)` contact registration;
+- [x] all five use compatible `(128,232)` contact registration;
 - [ ] final files pass the full angle/identity/palette checklist.
 
-**M5B registration blocker:** automated alpha-bound inspection plus representative 960x540 rendering demonstrates that the committed player exports do not currently place visible road-contact pixels near the frozen `Y=232` anchor. Measured visible alpha bounds are:
+**M5B vertical registration correction:** all five player PNGs were re-registered in-source by integer pixel translation only—no resizing, resampling, palette change or runtime offset. Pre-fix measured alpha bottoms and applied translations were:
 
 ```text
-hard_left  bottom ~201
-left       bottom ~211
-center     bottom ~213
-right      bottom ~211
-hard_right bottom ~202
+hard_left  Y=200 -> +32 px
+left       Y=210 -> +22 px
+center     Y=212 -> +20 px
+right      Y=210 -> +22 px
+hard_right Y=201 -> +31 px
 ```
 
-The Center frame therefore ends roughly **19 px above** the canonical contact line, and representative gameplay visibly shows the vehicle floating above the road-contact position. Several steering frames also touch the horizontal canvas boundary. Do **not** hide this source defect through per-texture runtime offsets or per-state scale compensation; re-register/re-export the source family against the frozen 256x256 contract.
+Post-fix analysis confirms every player frame now has visual alpha base `Y=232`, preserving a 23 px transparent margin below the vehicle. A 960x540 production-browser smoke confirmed the existing `(128,232)` Phaser origin places Center and Hard Left on the road without the previous vertical floating. Several non-center player frames still touch the horizontal canvas boundary (`X=0/255`); that is a separate transparent-bound quality issue and is **not** being hidden through runtime offsets or per-state scaling.
 
 ### 4.2 Gameplay visual acceptance
 
@@ -116,11 +116,11 @@ Runtime acceptance additionally requires:
 - [x] releasing hard steering visibly traverses moderate pose before center;
 - [x] pose selection does not affect physics/collision state;
 - [ ] no threshold flicker is visible under human representative play;
-- [ ] player anchor remains stable across all five textures;
+- [x] player vertical contact anchor remains stable across all five textures;
 - [ ] no unintended smoothing or obvious fractional-scale shimmer is visible with accepted final 256px sources;
 - [ ] the player remains correctly grounded/readable over city, forest, mountain-pass and tunnel compositions.
 
-The browser smoke recorded the actual texture sequence `Center -> Left -> Hard Left` under binary keyboard input and the reverse sequence on release. Player grounding remains blocking, so M5.6/M5.8 are not accepted yet.
+The earlier browser smoke recorded the actual texture sequence `Center -> Left -> Hard Left` under binary keyboard input and the reverse sequence on release. Post-fix 960x540 browser rendering confirms the vertical grounding defect is resolved in representative city Center/Hard-Left views. M5.6/M5.8 remain open for horizontal transparent-bound cleanup/full visual approval and human all-zone gameplay-speed readability rather than vertical registration.
 
 Do not expand to seven yaw states or pitch families before this gate fails for a documented reason.
 
@@ -139,7 +139,7 @@ Hard Left -> Left -> Center -> Right -> Hard Right
 For every shipping traffic visual:
 
 - [x] all five PNGs are exact **`256 x 256`** transparent sources for taxi, hatchback, van and truck;
-- [ ] all five use `(128,232)`-compatible road-contact registration;
+- [x] all five use `(128,232)`-compatible road-contact registration;
 - [x] canonical naming follows `traffic_<visual>_rear_<yaw>.png`;
 - [ ] camera height/pitch/distance is visually approved as stable across each family;
 - [ ] yaw progression is visually approved as monotonic and one vehicle rotating;
@@ -151,7 +151,16 @@ For every shipping traffic visual:
 
 The source-format smoke also confirms every vehicle frame remains at or below the documented 24-visible-color cap.
 
-Traffic registration remains an acceptance risk. Measured visible-alpha bottoms vary materially across adjacent yaw states; examples include taxi `204..216`, hatchback `210..228`, van `230..238`, and truck `224..230`. These values are not automatically equivalent to tire contact, but the variance is large enough that final family registration must be corrected/visually approved rather than compensated by per-texture runtime offsets.
+Traffic vertical registration has been corrected in-source using the same integer-translation-only rule. Exact pre-fix alpha bottoms / translations to the frozen `Y=232` visual base were:
+
+```text
+taxi      HL 203 +29 | L 208 +24 | C 215 +17 | R 211 +21 | HR 203 +29
+hatchback HL 210 +22 | L 227  +5 | C 226  +6 | R 226  +6 | HR 209 +23
+van       HL 229  +3 | L 234  -2 | C 237  -5 | R 236  -4 | HR 230  +2
+truck     HL 223  +9 | L 227  +5 | C 229  +3 | R 227  +5 | HR 223  +9
+```
+
+Post-fix analysis confirms all twenty traffic frames end at visual alpha base `Y=232` with the original visible RGBA palette preserved. This resolves the vertical contact-line variance without adding per-texture runtime offsets. Human approval of apparent scale/yaw continuity and horizontal transparent bounds remains separate M5.8 work.
 
 ### 5.2 Traffic content count
 
