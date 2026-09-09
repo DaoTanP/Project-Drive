@@ -1,0 +1,83 @@
+name: M5B Asset Contract Smoke
+
+on:
+  push:
+    branches:
+      - feat/m5b-batch-a-assets
+    paths:
+      - 'WebGame/public/assets/**'
+      - '.github/workflows/m5b-asset-contract-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  asset-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Install Pillow
+        run: python -m pip install --disable-pip-version-check pillow==11.3.0
+      - name: Verify Batch A production assets
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+
+          root = Path('WebGame/public/assets')
+          yaws = ['hard_left', 'left', 'center', 'right', 'hard_right']
+          players = [root / 'player' / f'player_rear_{yaw}.png' for yaw in yaws]
+          visuals = ['taxi', 'hatchback', 'van', 'truck']
+          traffic = [root / 'traffic' / f'traffic_{visual}_rear_{yaw}.png' for visual in visuals for yaw in yaws]
+          far = root / 'backgrounds' / 'bg_city_far.png'
+          mid = root / 'backgrounds' / 'bg_city_mid.png'
+          expected = players + traffic + [far, mid]
+
+          missing = [str(path) for path in expected if not path.is_file()]
+          if missing:
+              raise SystemExit('Missing Batch A assets:\n' + '\n'.join(missing))
+
+          def visible_color_count(image: Image.Image) -> int:
+              rgba = image.convert('RGBA')
+              return len({(r, g, b, a) for r, g, b, a in rgba.getdata() if a > 0})
+
+          def alpha_bounds(image: Image.Image):
+              return image.convert('RGBA').getchannel('A').getbbox()
+
+          for path in players + traffic:
+              with Image.open(path) as image:
+                  if image.size != (256, 256):
+                      raise SystemExit(f'{path}: expected 256x256, got {image.size}')
+                  if 'A' not in image.getbands():
+                      raise SystemExit(f'{path}: missing alpha channel')
+                  alpha = image.getchannel('A')
+                  minimum, maximum = alpha.getextrema()
+                  if minimum == 255:
+                      raise SystemExit(f'{path}: no transparent pixels')
+                  colors = visible_color_count(image)
+                  if colors > 24:
+                      raise SystemExit(f'{path}: {colors} visible colors exceeds 24-color cap')
+                  print(f'{path.name}: mode={image.mode} colors={colors} bbox={alpha_bounds(image)} alpha={minimum}..{maximum}')
+
+          with Image.open(far) as image:
+              if image.size != (2048, 512):
+                  raise SystemExit(f'{far}: expected 2048x512, got {image.size}')
+              print(f'{far.name}: mode={image.mode} size={image.size}')
+
+          with Image.open(mid) as image:
+              if image.size != (2048, 512):
+                  raise SystemExit(f'{mid}: expected 2048x512, got {image.size}')
+              if 'A' not in image.getbands():
+                  raise SystemExit(f'{mid}: RGBA/alpha channel required')
+              minimum, maximum = image.getchannel('A').getextrema()
+              if minimum == 255:
+                  raise SystemExit(f'{mid}: expected transparent pixels outside silhouettes')
+              print(f'{mid.name}: mode={image.mode} size={image.size} bbox={alpha_bounds(image)} alpha={minimum}..{maximum}')
+
+          print(f'Batch A contract files verified: {len(expected)}')
+          PY
