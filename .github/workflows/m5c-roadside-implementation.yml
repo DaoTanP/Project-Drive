@@ -1,0 +1,162 @@
+name: M5C Roadside Implementation
+
+on:
+  push:
+    branches:
+      - feat/m5c-roadside-sprites
+    paths:
+      - '.github/workflows/m5c-roadside-implementation.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: feat/m5c-roadside-sprites
+
+      - name: Patch runtime and M5 status
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          road_path = Path('WebGame/src/game/Road.ts')
+          road = road_path.read_text()
+          road = road.replace('type PropKind =', 'export type RoadsideSpriteKind =')
+          road = road.replace('PropKind', 'RoadsideSpriteKind')
+
+          marker = "export interface RoadObjectProjection {\n  x: number;\n  y: number;\n  cameraZ: number;\n  pixelsPerWorld: number;\n  clipY: number;\n}\n"
+          insertion = marker + "\nexport interface RoadsideSpriteProjection extends RoadObjectProjection {\n  kind: RoadsideSpriteKind;\n  side: -1 | 1;\n  zone: EnvironmentZone;\n  worldWidth: number;\n  worldHeight: number;\n}\n"
+          assert road.count(marker) == 1
+          road = road.replace(marker, insertion)
+
+          marker = "const BRANCH_PROMPT_LEAD_DISTANCE = 24000;\n"
+          insertion = marker + "\nconst EMPTY_ROADSIDE_SPRITE_KINDS: ReadonlySet<RoadsideSpriteKind> = new Set();\nconst PROP_WORLD_SIZE: Record<RoadsideSpriteKind, readonly [number, number]> = {\n  light: [160, 1000],\n  rail: [850, 220],\n  pole: [80, 900],\n  tree: [620, 1000],\n  rock: [760, 620],\n  chevron: [300, 460],\n  sign: [680, 720],\n  reflector: [95, 160],\n};\n"
+          assert road.count(marker) == 1
+          road = road.replace(marker, insertion)
+
+          marker = "  private projectionFrame = 0;\n"
+          insertion = marker + "  private readonly visibleSegments: RoadSegment[] = [];\n"
+          assert road.count(marker) == 1
+          road = road.replace(marker, insertion)
+
+          marker = "  get branch(): RouteBranch {\n    return this.activeBranch;\n  }\n"
+          insertion = marker + "\n  get roadsideSpritePoolSize(): number {\n    return DRAW_DISTANCE;\n  }\n"
+          assert road.count(marker) == 1
+          road = road.replace(marker, insertion)
+
+          old = "  render(graphics: Phaser.GameObjects.Graphics, view: RoadRenderView): void {"
+          new = "  render(\n    graphics: Phaser.GameObjects.Graphics,\n    view: RoadRenderView,\n    spriteBackedKinds: ReadonlySet<RoadsideSpriteKind> = EMPTY_ROADSIDE_SPRITE_KINDS,\n  ): void {"
+          assert road.count(old) == 1
+          road = road.replace(old, new)
+
+          old = "    const visible: RoadSegment[] = [];\n\n    this.projectionFrame += 1;"
+          new = "    const visible = this.visibleSegments;\n    visible.length = 0;\n\n    this.projectionFrame += 1;"
+          assert road.count(old) == 1
+          road = road.replace(old, new)
+
+          old = "    drawTunnel(graphics, visible, width, height, playerZone === 'tunnel');\n    drawRoadside(graphics, visible);\n  }\n\n  private zoneAt(position: number): EnvironmentZone {"
+          collect = "    drawTunnel(graphics, visible, width, height, playerZone === 'tunnel');\n    drawRoadside(graphics, visible, spriteBackedKinds);\n  }\n\n  collectRoadsideSprites(\n    output: RoadsideSpriteProjection[],\n    spriteBackedKinds: ReadonlySet<RoadsideSpriteKind>,\n  ): number {\n    let count = 0;\n\n    for (let i = this.visibleSegments.length - 1; i >= 0 && count < output.length; i -= 1) {\n      const segment = this.visibleSegments[i];\n      const style = ZONE_STYLE[segment.zone];\n      const hash = hash32(segment.index, zoneSalt(segment.zone));\n      if ((segment.index + (hash % style.spacing)) % style.spacing !== 0) continue;\n\n      const kind = style.props[(hash >>> 4) % style.props.length];\n      if (!usesProductionRoadsideSprite(kind, segment.zone, spriteBackedKinds)) continue;\n\n      let side: -1 | 1 = hash % 2 === 0 ? -1 : 1;\n      if (kind === 'chevron' && Math.abs(segment.curve) > 0.08) {\n        side = segment.curve > 0 ? 1 : -1;\n      }\n      const variation = 0.88 + ((hash >>> 9) % 30) / 100;\n      const target = output[count];\n      if (!projectFromSegment(segment, 0.55, style.propOffset * variation * side, target)) continue;\n\n      const [worldWidth, worldHeight] = PROP_WORLD_SIZE[kind];\n      target.kind = kind;\n      target.side = side;\n      target.zone = segment.zone;\n      target.worldWidth = worldWidth;\n      target.worldHeight = worldHeight;\n      count += 1;\n    }\n\n    return count;\n  }\n\n  private zoneAt(position: number): EnvironmentZone {"
+          assert road.count(old) == 1
+          road = road.replace(old, collect)
+
+          old = "function drawRoadside(\n  graphics: Phaser.GameObjects.Graphics,\n  visible: readonly RoadSegment[],\n): void {"
+          new = "function drawRoadside(\n  graphics: Phaser.GameObjects.Graphics,\n  visible: readonly RoadSegment[],\n  spriteBackedKinds: ReadonlySet<RoadsideSpriteKind>,\n): void {"
+          assert road.count(old) == 1
+          road = road.replace(old, new)
+
+          old = "    const kind = style.props[(hash >>> 4) % style.props.length];\n    let side = hash % 2 === 0 ? -1 : 1;"
+          new = "    const kind = style.props[(hash >>> 4) % style.props.length];\n    if (usesProductionRoadsideSprite(kind, segment.zone, spriteBackedKinds)) continue;\n\n    let side = hash % 2 === 0 ? -1 : 1;"
+          assert road.count(old) == 1
+          road = road.replace(old, new)
+
+          marker = "function zoneSalt(zone: EnvironmentZone): number {"
+          helper = "function usesProductionRoadsideSprite(\n  kind: RoadsideSpriteKind,\n  zone: EnvironmentZone,\n  spriteBackedKinds: ReadonlySet<RoadsideSpriteKind>,\n): boolean {\n  // The first outdoor Batch B light is a streetlight; tunnel fixtures keep\n  // their M4 procedural presentation until the dedicated tunnel asset exists.\n  return spriteBackedKinds.has(kind) && !(kind === 'light' && zone === 'tunnel');\n}\n\n" + marker
+          assert road.count(marker) == 1
+          road = road.replace(marker, helper)
+          road_path.write_text(road)
+
+          game_path = Path('WebGame/src/scenes/GameScene.ts')
+          game = game_path.read_text()
+          old = "import { Road, type EnvironmentZone } from '../game/Road';"
+          new = "import {\n  Road,\n  type EnvironmentZone,\n  type RoadsideSpriteKind,\n  type RoadsideSpriteProjection,\n} from '../game/Road';"
+          assert game.count(old) == 1
+          game = game.replace(old, new)
+
+          marker = "const CITY_MID_PARALLAX_RATE = 0.028;\n"
+          insertion = marker + "\nconst ROADSIDE_TEXTURE_BY_KIND: Partial<Record<RoadsideSpriteKind, string>> = {\n  light: 'prop_streetlight',\n  rail: 'prop_guardrail',\n  tree: 'prop_tree_cluster_01',\n  rock: 'prop_rock_cluster_01',\n  chevron: 'prop_chevron',\n};\nconst ROADSIDE_FLIPPABLE_KINDS: ReadonlySet<RoadsideSpriteKind> = new Set(['chevron']);\n"
+          assert game.count(marker) == 1
+          game = game.replace(marker, insertion)
+
+          marker = "  private roadGraphics!: Phaser.GameObjects.Graphics;\n"
+          insertion = marker + "  private roadsideSprites: Phaser.GameObjects.Image[] = [];\n  private roadsideSpriteProjections: RoadsideSpriteProjection[] = [];\n  private roadsideSpriteKinds: Set<RoadsideSpriteKind> = new Set();\n"
+          assert game.count(marker) == 1
+          game = game.replace(marker, insertion)
+
+          old = "    this.roadGraphics = this.add.graphics().setDepth(0);\n    this.trafficSprites = Array.from({ length: this.traffic.renderPoolSize }, () =>"
+          new = "    this.roadGraphics = this.add.graphics().setDepth(0);\n    this.initializeRoadsideSpritePool();\n    this.trafficSprites = Array.from({ length: this.traffic.renderPoolSize }, () =>"
+          assert game.count(old) == 1
+          game = game.replace(old, new)
+
+          old = "    this.road.render(this.roadGraphics, {\n      playerPosition: roadPosition,\n      playerRoadX: this.player.roadX,\n      viewportWidth: width,\n      viewportHeight: height,\n    });\n\n    this.traffic.render"
+          new = "    this.road.render(\n      this.roadGraphics,\n      {\n        playerPosition: roadPosition,\n        playerRoadX: this.player.roadX,\n        viewportWidth: width,\n        viewportHeight: height,\n      },\n      this.roadsideSpriteKinds,\n    );\n    this.renderRoadsideSprites();\n\n    this.traffic.render"
+          assert game.count(old) == 1
+          game = game.replace(old, new)
+
+          marker = "  private updateCityBackgrounds(zone: EnvironmentZone): void {"
+          methods = "  private initializeRoadsideSpritePool(): void {\n    this.roadsideSpriteKinds = new Set(\n      (Object.entries(ROADSIDE_TEXTURE_BY_KIND) as Array<[RoadsideSpriteKind, string]>)\n        .filter(([, textureKey]) => this.textures.exists(textureKey))\n        .map(([kind]) => kind),\n    );\n\n    this.roadsideSpriteProjections = Array.from(\n      { length: this.road.roadsideSpritePoolSize },\n      (): RoadsideSpriteProjection => ({\n        x: 0,\n        y: 0,\n        cameraZ: 0,\n        pixelsPerWorld: 0,\n        clipY: 0,\n        kind: 'tree',\n        side: 1,\n        zone: 'rural',\n        worldWidth: 0,\n        worldHeight: 0,\n      }),\n    );\n\n    this.roadsideSprites = this.roadsideSpriteKinds.size === 0\n      ? []\n      : Array.from({ length: this.road.roadsideSpritePoolSize }, () =>\n          this.add\n            .image(0, 0, 'player_rear_center')\n            .setOrigin(0.5, 1)\n            .setVisible(false)\n            .setDepth(1),\n        );\n  }\n\n  private renderRoadsideSprites(): void {\n    for (const image of this.roadsideSprites) image.setVisible(false);\n    if (this.roadsideSprites.length === 0) return;\n\n    const count = this.road.collectRoadsideSprites(\n      this.roadsideSpriteProjections,\n      this.roadsideSpriteKinds,\n    );\n\n    for (let i = 0; i < count; i += 1) {\n      const projection = this.roadsideSpriteProjections[i];\n      const textureKey = ROADSIDE_TEXTURE_BY_KIND[projection.kind];\n      if (textureKey === undefined || !this.textures.exists(textureKey)) continue;\n\n      const displayWidth = projection.worldWidth * projection.pixelsPerWorld;\n      const displayHeight = projection.worldHeight * projection.pixelsPerWorld;\n      if (displayWidth < 1.5 || displayHeight < 2) continue;\n\n      const top = projection.y - displayHeight;\n      const visibleBottom = Math.min(projection.y, projection.clipY);\n      const visibleHeight = visibleBottom - top;\n      if (visibleHeight <= 1) continue;\n\n      const image = this.roadsideSprites[i];\n      image\n        .setTexture(textureKey)\n        .setOrigin(0.5, 1)\n        .setPosition(projection.x, projection.y)\n        .setDisplaySize(displayWidth, displayHeight)\n        .setFlipX(ROADSIDE_FLIPPABLE_KINDS.has(projection.kind) && projection.side < 0)\n        .setDepth(1 + i / (this.roadsideSprites.length + 1))\n        .setVisible(true);\n\n      if (visibleHeight < displayHeight - 0.5) {\n        const sourceHeight = image.frame.height;\n        const cropHeight = Math.max(1, Math.min(sourceHeight, Math.ceil(\n          sourceHeight * (visibleHeight / displayHeight),\n        )));\n        image.setCrop(0, 0, image.frame.width, cropHeight);\n      } else {\n        image.setCrop();\n      }\n    }\n  }\n\n" + marker
+          assert game.count(marker) == 1
+          game = game.replace(marker, methods)
+          game_path.write_text(game)
+
+          plan_path = Path('Docs/05-Planning/M5-Presentation-and-Production-Assets.md')
+          plan = plan_path.read_text()
+          marker = "### Batch A gate\n\nBefore Batch B:\n"
+          replacement = "### Batch A gate\n\n**Prototype progression exception:** the current vehicle yaw families are accepted as prototype art so environment work can proceed. Known horizontal source clipping and final yaw-family/camera/readability approval are deferred to M7.10. This does not relax the final production contract and must not trigger runtime compensation, per-state scaling or vehicle redesign during M5C.\n\nBefore final production approval:\n"
+          assert plan.count(marker) == 1
+          plan = plan.replace(marker, replacement)
+          plan_path.write_text(plan)
+
+          backlog_path = Path('Docs/05-Planning/Task-Backlog.md')
+          backlog = backlog_path.read_text()
+          old = "**M5B status:** runtime Batch A integration is implemented and structurally validated: all 27 standard Batch A images load with frozen source dimensions, four traffic visual identities map to the existing three behavior classes, five-yaw traffic presentation derives from projected road tangent, player binary steering traverses moderate/hard poses, city far/mid authored parallax is active, and M3 collision/near-miss regression remains clean. All 25 player/traffic PNGs are now re-registered in-source to the canonical visual base `Y=232` using integer pixel translation only; post-fix asset analysis and representative 960x540 browser rendering pass. M5.6/M5.8 remain open for horizontal transparent-bound cleanup, remaining family visual approval and human all-zone gameplay-speed readability."
+          new = "**M5B status:** prototype Batch A integration is complete and structurally validated: all 27 standard Batch A images load with frozen source dimensions, four traffic visual identities map to the existing three behavior classes, five-yaw traffic presentation derives from projected road tangent, player binary steering traverses moderate/hard poses, city far/mid authored parallax is active, and M3 collision/near-miss regression remains clean. All 25 player/traffic PNGs are registered to visual base `Y=232`. The current yaw families are explicitly accepted for prototype progression; known horizontal clipping/final family visual approval is deferred to M7.10 and is not an M5C blocker."
+          assert backlog.count(old) == 1
+          backlog = backlog.replace(old, new)
+          backlog = backlog.replace(
+            "- [ ] M5.6 Produce/import Asset Batch A: five `256 x 256` player steering poses, complete `256 x 256` five-yaw families for at least three traffic identities (standard target: taxi, hatchback, van, truck = 20 traffic frames), plus city far/mid backgrounds. Runtime import and vertical source registration are complete; horizontal transparent-bound cleanup/full visual approval remains open.",
+            "- [x] M5.6 Produce/import prototype Asset Batch A: five `256 x 256` player steering poses, four complete traffic five-yaw families and city far/mid backgrounds. Final yaw-family/clipping approval is deferred to M7.10 and does not block M5C.",
+          )
+          backlog = backlog.replace(
+            "- [ ] M5.8 Validate player and traffic readability against representative `city`, `forest`, `mountain-pass` and `tunnel` compositions at gameplay speed, including stable yaw-family registration and no collision/near-miss regression. Vertical registration, structural/browser checks and M3 regression pass; horizontal bounds/full family visual approval and human all-zone gameplay-speed readability remain open.",
+            "- [ ] M5.8 Final player/traffic yaw-family and gameplay-speed readability approval is deferred to M7.10. Structural browser checks, vertical registration and M3 regression pass; this item is intentionally non-blocking for the prototype environment slices.",
+          )
+          backlog_path.write_text(backlog)
+
+          acceptance_path = Path('Docs/06-Quality/M5-Presentation-Acceptance.md')
+          acceptance = acceptance_path.read_text()
+          marker = "## 4. Player Batch A acceptance\n"
+          replacement = marker + "\n**Prototype status:** current player/traffic yaw art is accepted for prototype progression. Final horizontal-bound, camera/yaw continuity and gameplay-speed family approval is deferred to M7.10; known defects remain documented and are not to be hidden with runtime compensation.\n"
+          assert acceptance.count(marker) == 1
+          acceptance = acceptance.replace(marker, replacement)
+          acceptance_path.write_text(acceptance)
+          PY
+
+      - name: Typecheck
+        working-directory: WebGame
+        run: |
+          npm ci
+          npm run typecheck
+          npm run build
+
+      - name: Commit implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add WebGame/src/game/Road.ts WebGame/src/scenes/GameScene.ts Docs/05-Planning/M5-Presentation-and-Production-Assets.md Docs/05-Planning/Task-Backlog.md Docs/06-Quality/M5-Presentation-Acceptance.md
+          git commit -m "feat: add pooled roadside sprite projection path"
+          git push origin HEAD:feat/m5c-roadside-sprites
