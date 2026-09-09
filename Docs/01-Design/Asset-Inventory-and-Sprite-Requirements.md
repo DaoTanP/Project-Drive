@@ -10,7 +10,7 @@ It answers three questions:
 2. which visual elements should be procedural instead of sprite-authored;
 3. what asset count and production constraints keep the game inside the approved small scope.
 
-The art direction, palette and color-role rules are defined separately in [`Art-Direction-and-Color-Palette.md`](Art-Direction-and-Color-Palette.md). Environment-zone composition and reuse rules are defined in [`Environment-Zones-and-Roadside-Composition.md`](Environment-Zones-and-Roadside-Composition.md).
+The art direction, palette and color-role rules are defined separately in [`Art-Direction-and-Color-Palette.md`](Art-Direction-and-Color-Palette.md). Environment-zone composition and reuse rules are defined in [`Environment-Zones-and-Roadside-Composition.md`](Environment-Zones-and-Roadside-Composition.md). Vehicle-angle production contracts are defined in [`Player-Sprite-Angle-Specification.md`](Player-Sprite-Angle-Specification.md) and [`Traffic-Sprite-Angle-Specification.md`](Traffic-Sprite-Angle-Specification.md).
 
 ## 2. Asset-scope principle
 
@@ -18,19 +18,23 @@ Night Courier is a pseudo-3D arcade racer. Richness should come primarily from:
 
 `projection + perspective scaling + parallax + repeated props + composition + lighting/color`
 
-not from producing hundreds of unique sprites.
+not from producing hundreds of unrelated sprites.
 
 The initial route uses five presentation zones (`city`, `rural`, `forest`, `mountain-pass`, `tunnel`) but they share one asset vocabulary. They are not five independent biome packs.
 
-The revised initial target is approximately:
+The traffic contract now intentionally raises the image count because each production traffic visual uses a complete five-yaw family on a standardized `256 x 256` source canvas.
 
-- **38–53 unique runtime images**;
-- approximately **49–74 sprite frames/images** when steering/brake/FX variants are counted;
+Current planning target:
+
+- **49–67 runtime image files** across the normal initial asset scope;
+- approximately **54–67 runtime image files** is the expected range if all four recommended traffic visual identities ship with complete five-yaw families;
 - **1 music track**;
 - approximately **8 SFX**;
 - **1 pixel/bitmap font family** where licensing and readability permit.
 
-This is an upper production target, not a requirement to fill every slot before the game is playable.
+The lower image bound assumes only three complete traffic visual identities. The normal target assumes four: taxi, hatchback, van and truck.
+
+This is a production budget, not a requirement to fill every optional slot before the game is playable.
 
 ## 3. Procedural versus authored visuals
 
@@ -96,7 +100,7 @@ Do not create `UPHILL` or `DOWNHILL` player variants in the current phase. Those
 
 ### Canonical source/export contract
 
-All five required player steering frames now use:
+All five required player steering frames use:
 
 - exactly **256 x 256 px** canvas;
 - transparent PNG;
@@ -105,16 +109,6 @@ All five required player steering frames now use:
 - the same Night Courier 20 palette/color-cap rules.
 
 The previous 64 x 64 contract is retired. Increasing resolution does not increase yaw-state count, pitch-family scope or gameplay complexity.
-
-The five high-resolution PNGs committed immediately before this contract are **staging references**, not accepted production exports. Their observed canvases are currently inconsistent:
-
-- `player_rear_center.png`: `1254 x 1254`;
-- `player_rear_right.png`: `1254 x 1254`;
-- `player_rear_left.png`: `1256 x 1256`;
-- `player_rear_hard_left.png`: `1256 x 1256`;
-- `player_rear_hard_right.png`: `1256 x 1256`.
-
-Runtime may temporarily scale those files while integration is validated, but Batch A player acceptance requires explicit 256 x 256 production exports. Do not silently resample the staging PNGs and declare them final without visual review.
 
 Recommended polish frames only if they materially improve feel:
 
@@ -133,6 +127,8 @@ The target count above excludes deferred pitch families. Do not increase the cur
 
 ## 5. Traffic vehicles
 
+Traffic production follows [`Traffic-Sprite-Angle-Specification.md`](Traffic-Sprite-Angle-Specification.md).
+
 ### Gameplay classes
 
 Traffic logic remains limited to three behavioral/data classes:
@@ -141,33 +137,103 @@ Traffic logic remains limited to three behavioral/data classes:
 - `van`;
 - `truck`.
 
-Visual variety must not create new gameplay AI classes or zone-specific traffic logic.
+Visual variety and yaw states must not create new gameplay AI classes or zone-specific traffic logic.
 
-### Initial production visuals
+### Initial production visual identities
 
-Recommended runtime sprites:
+Recommended traffic visuals:
 
 1. city taxi;
 2. compact hatchback;
 3. small delivery van;
 4. box truck.
 
-Taxi and hatchback both use the `car` gameplay behavior. This allows four recognizable traffic silhouettes without expanding systems.
+Taxi and hatchback both use the `car` gameplay behavior. Van and truck retain the existing `van` and `truck` behavior classes.
 
-### Frame requirements
+### Canonical traffic source/export contract
 
-For the initial version, one rear-biased gameplay sprite per traffic visual is sufficient. Slight rear-left/rear-right variants are optional and must not block completion.
+Every traffic frame uses:
 
-Color variation should prefer inexpensive runtime tinting or low-cost texture variants only when it preserves the approved palette and material readability.
+- exactly **256 x 256 px** canvas;
+- transparent PNG;
+- canonical road-contact anchor approximately **`(128,232)`**;
+- stable camera/registration within one vehicle family;
+- no road, cast ground shadow, decorative background or detached glow.
+
+Unlike the player, traffic does **not** use a fixed `256 x 256` runtime display box. The `256 x 256` contract is source/export resolution only. Runtime traffic remains projected and scaled by pseudo-3D depth/world-size data.
+
+### Required five-yaw family
+
+Every traffic visual promoted to production supports the same five yaw states:
+
+```text
+Hard Left -> Left -> Center -> Right -> Hard Right
+```
+
+Initial target angles:
+
+| State | Target yaw from Center |
+|---|---:|
+| `Hard Left` | approximately `-20° to -22°` |
+| `Left` | approximately `-10° to -12°` |
+| `Center` | `0°` |
+| `Right` | approximately `+10° to +12°` |
+| `Hard Right` | approximately `+20° to +22°` |
+
+A temporary `Center`-only visual may be used while integrating the renderer, but it does **not** count as a complete Batch A traffic family.
+
+Yaw is presentation state only. It must not alter traffic speed, `roadX`, collision/near-miss envelopes, recycle logic or behavior type.
+
+### Canonical naming
+
+Use:
+
+```text
+traffic_<visual>_rear_<yaw>.png
+```
+
+Examples:
+
+```text
+traffic_taxi_rear_hard_left.png
+traffic_taxi_rear_left.png
+traffic_taxi_rear_center.png
+traffic_taxi_rear_right.png
+traffic_taxi_rear_hard_right.png
+
+traffic_hatchback_rear_hard_left.png
+traffic_hatchback_rear_left.png
+traffic_hatchback_rear_center.png
+traffic_hatchback_rear_right.png
+traffic_hatchback_rear_hard_right.png
+
+traffic_van_rear_hard_left.png
+traffic_van_rear_left.png
+traffic_van_rear_center.png
+traffic_van_rear_right.png
+traffic_van_rear_hard_right.png
+
+traffic_truck_rear_hard_left.png
+traffic_truck_rear_left.png
+traffic_truck_rear_center.png
+traffic_truck_rear_right.png
+traffic_truck_rear_hard_right.png
+```
+
+Do not keep `traffic_*_rear.png` as a second permanent production convention after five-yaw integration. A temporary migration alias is acceptable only while existing implementation/assets are being replaced.
+
+### Traffic count
+
+- reduced minimum: **3 visual identities x 5 yaw = 15 traffic frames**;
+- standard initial production: **4 visual identities x 5 yaw = 20 traffic frames**.
+
+Do not add extra color/livery identities before the base five-yaw families are stable. Prefer runtime tinting or later low-cost variants where visually safe.
 
 ### Explicitly deferred
 
-Police vehicles are concept-art material only for the initial release. Do not create a pursuit/police asset set unless police gameplay is separately approved.
+Police vehicles are concept-art material only for the initial release. Do not create a pursuit/police family unless police gameplay is separately approved.
 
-### Target count
-
-- minimum viable: **3 traffic images**;
-- recommended initial production: **4–6 images** including low-cost visual variants.
+Traffic `UPHILL` / `DOWNHILL` pitch families are also outside the initial scope. Five yaw states are the complete current traffic orientation family.
 
 ## 6. Roadside props and environment sprites
 
@@ -357,28 +423,29 @@ Approximate starting sizes, to be validated visually rather than treated as stri
 | Category | Typical native size |
 |---|---|
 | player steering frame | **exactly `256 x 256`** |
-| traffic car | around `64 x 48` to `96 x 64` |
-| truck | around `96 x 80` |
+| traffic yaw frame | **exactly `256 x 256`** |
 | small/medium prop | around `32 x 64` to `128 x 128` |
 | tree/rock cluster | around `64 x 96` to `192 x 192` depending on reuse |
 | tunnel portal element | around `128 x 128` to `256 x 192` depending on composition |
 | UI icon | around `24 x 24` or `32 x 32` |
 | parallax strip | typically `512–1024+ px` wide depending on tiling needs |
 
-The more important general rule is consistent apparent pixel density. Assets must look like they belong to the same native pixel scale when projected into the gameplay view.
+The more important general rule is consistent apparent pixel density. Assets must look like they belong to the same visual system when projected into the gameplay view.
 
-For the five player steering frames specifically, **256 x 256 px is a hard production contract**, not approximate guidance.
+For player and traffic vehicle frames, **256 x 256 px is a hard production source contract**, not approximate guidance.
 
 ## 13. Sprite anchors and pivots
 
 Use predictable anchors so projected placement remains stable:
 
-- player steering frames: canonical contact anchor approximately `(128,232)` on the 256 x 256 canvas;
-- other vehicles: bottom-center near tire/road contact line;
+- player steering frames: canonical contact anchor approximately `(128,232)` on the `256 x 256` canvas;
+- traffic yaw frames: canonical road-contact anchor approximately `(128,232)` on the `256 x 256` canvas;
 - vertical roadside props: bottom-center at ground contact;
 - tree/rock clusters: bottom-center or explicitly documented ground-contact anchor;
 - hanging/overhead/tunnel props: explicit authored pivot matching their support/road alignment;
 - UI icons: center or top-left according to HUD layout, but remain consistent within a category.
+
+Traffic uses the same source anchor across visual identities, but actual runtime display scale remains projection/world-size driven.
 
 Transparent padding should be kept controlled. Excess inconsistent padding makes pseudo-3D scaling and collision/readability tuning harder.
 
@@ -407,7 +474,10 @@ Prefer lowercase snake_case consistently. Recommended examples:
 ```text
 player_rear_center.png
 player_rear_hard_left.png
-traffic_taxi_rear.png
+traffic_taxi_rear_center.png
+traffic_taxi_rear_hard_left.png
+traffic_van_rear_right.png
+traffic_truck_rear_hard_right.png
 prop_streetlight.png
 prop_tree_cluster_01.png
 prop_rock_cluster_01.png
@@ -447,13 +517,23 @@ The atlas is an optimization/packaging step, not an architectural dependency.
 Produce first:
 
 - five **256 x 256** FLAT player steering frames;
-- taxi/hatchback/van/truck rear views, with at least three traffic visuals available;
+- complete five-yaw traffic families at **256 x 256 per frame**;
 - city far skyline;
 - city mid skyline/building strip.
 
-Approximately **10–11 images** are sufficient to move from geometric placeholder gameplay to an art-readable prototype.
+Traffic target:
 
-The currently committed high-resolution player PNGs are staging references only; replace/re-export them at exact 256 x 256 before marking the player part of Batch A accepted.
+```text
+minimum reduced set: 3 identities x 5 yaw = 15 frames
+standard set: taxi + hatchback + van + truck = 4 x 5 = 20 frames
+```
+
+Therefore Batch A contains:
+
+- **22 images minimum**: 5 player + 15 traffic + 2 city backgrounds;
+- **27 images standard**: 5 player + 20 traffic + 2 city backgrounds.
+
+Do not move to extra traffic identities/color variants before the base five-yaw families pass registration/readability validation.
 
 ### Batch B — environment identity
 
@@ -486,19 +566,19 @@ Only after gameplay and composition are stable:
 
 - sparks/smoke;
 - HUD icons;
-- optional brake frames;
-- optional extra traffic color/visual variants;
+- optional player brake frames;
+- optional extra traffic color/livery identities only after the five-yaw base families are accepted;
 - result-screen decoration;
 - optional final parallax/zone accent only if a representative zone still lacks distinction.
 
-Pitch-family expansion is **not** part of Batch C by default. It requires a separate gameplay-evidence gate under the player angle specification.
+Player pitch-family expansion and traffic pitch-family expansion are **not** part of Batch C by default.
 
 ## 18. Asset budget summary
 
 | Group | Initial target |
 |---|---:|
 | player vehicle | 5–8 frames, each `256 x 256` |
-| traffic | 4–6 images |
+| traffic | 15-frame reduced minimum; **20-frame standard target**, each `256 x 256` |
 | roadside/environment props | 15–18 images shared across zones |
 | backgrounds/parallax | 5–7 images shared across zones |
 | VFX | 4–6 images |
@@ -507,9 +587,9 @@ Pitch-family expansion is **not** part of Batch C by default. It requires a sepa
 | music | 1 track |
 | SFX | ~8 clips |
 
-The final unique-image budget should normally remain around **38–53 images**, with approximately **49–74 frames/images** after variants are counted.
+The overall runtime image budget is now approximately **49–67 images**. With the recommended four traffic identities and their full five-yaw families, expect approximately **54–67 images** before any later documented exception.
 
-Deferred `UPHILL` / `DOWNHILL` player families are not included in this budget.
+Deferred player/traffic pitch families are not included in this budget.
 
 If the initial release exceeds this substantially, review whether content has expanded beyond the intended minigame scope before producing more assets.
 
@@ -519,7 +599,9 @@ Do not commission or generate these unless a later approved feature requires the
 
 - player `UPHILL` pitch-family sprites;
 - player `DOWNHILL` pitch-family sprites;
-- runtime player pitch-family selection/atlas expansion;
+- traffic `UPHILL` / `DOWNHILL` pitch-family sprites;
+- runtime pitch-family selection/atlas expansion;
+- more than five traffic yaw states;
 - police pursuit sprite set;
 - multiple player-car selections;
 - garage/customization assets;
@@ -548,5 +630,13 @@ An asset is production-ready only when it:
 - is actually used by the current game or an explicitly approved near-term task.
 
 For player frames specifically, production-ready additionally requires exact **256 x 256** source dimensions and the canonical `(128,232)` registration contract.
+
+For traffic visuals specifically, production-ready additionally requires:
+
+- five accepted yaw frames per visual;
+- exact **256 x 256** source dimensions for every frame;
+- compatible `(128,232)` road-contact registration across the family;
+- stable apparent scale/identity across yaw states;
+- road-space collision/near-miss behavior remaining independent from selected texture.
 
 Producing an asset does not justify adding a system to use it. Gameplay scope remains authoritative over concept-art breadth.

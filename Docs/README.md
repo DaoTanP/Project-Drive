@@ -22,6 +22,7 @@ This directory is the authoritative documentation root for **Night Courier**.
 - [`01-Design/Art-Direction-and-Color-Palette.md`](01-Design/Art-Direction-and-Color-Palette.md) — authoritative visual identity, Night Courier 20 palette and zone-aware color/value rules.
 - [`01-Design/Asset-Inventory-and-Sprite-Requirements.md`](01-Design/Asset-Inventory-and-Sprite-Requirements.md) — authoritative runtime sprite/audio inventory, procedural-vs-authored rules, asset budgets, naming, pivots and production batches.
 - [`01-Design/Player-Sprite-Angle-Specification.md`](01-Design/Player-Sprite-Angle-Specification.md) — authoritative 256x256 player steering-frame contract: camera, yaw progression, rear-plane width, side exposure, wheel visibility, registration, palette/color cap and per-frame acceptance rules.
+- [`01-Design/Traffic-Sprite-Angle-Specification.md`](01-Design/Traffic-Sprite-Angle-Specification.md) — authoritative 256x256 traffic-frame contract: complete five-yaw families for every production traffic visual, naming, registration, projection-only yaw semantics and collision separation.
 
 ## Technical references
 
@@ -30,8 +31,8 @@ This directory is the authoritative documentation root for **Night Courier**.
 
 ## Active production planning
 
-- [`05-Planning/M5-Presentation-and-Production-Assets.md`](05-Planning/M5-Presentation-and-Production-Assets.md) — M5 dependency order, landscape/touch contract, five-state visual-steering mapping, asset-batch sequencing and production integration rules.
-- [`06-Quality/M5-Presentation-Acceptance.md`](06-Quality/M5-Presentation-Acceptance.md) — M5 foundation, viewport, touch, sprite, roadside, HUD, VFX/audio and completion acceptance gates.
+- [`05-Planning/M5-Presentation-and-Production-Assets.md`](05-Planning/M5-Presentation-and-Production-Assets.md) — M5 dependency order, landscape/touch contract, player/traffic yaw presentation contracts, asset-batch sequencing and production integration rules.
+- [`06-Quality/M5-Presentation-Acceptance.md`](06-Quality/M5-Presentation-Acceptance.md) — M5 foundation, viewport, touch, vehicle sprite, roadside, HUD, VFX/audio and completion acceptance gates.
 
 ## Current authoritative baseline
 
@@ -44,7 +45,7 @@ This directory is the authoritative documentation root for **Night Courier**.
 7. Roadside/environment placement is deterministic from stable route/segment/zone inputs. High-value landmarks are authored explicitly; ambient props use reusable deterministic placement rules.
 8. Tunnel uses the existing road projection with simple procedural enclosure geometry plus repeated projected fixtures; no separate scene or full 3D tunnel mesh is part of initial scope.
 9. Initial content remains deliberately small: one player vehicle, three traffic behavior classes, approximately **15–18 shared roadside/environment props** and **5–7 shared background/parallax images**.
-10. The normal revised visual budget is approximately **38–53 unique runtime images** / **49–74 frames/images including variants**.
+10. The revised runtime image budget is approximately **49–67 images**; with all four recommended traffic identities and complete five-yaw families, the expected range is approximately **54–67 images**.
 11. Web technology is **Phaser 4 + TypeScript + Vite**.
 12. No React, ECS, backend, database or external physics engine is part of the initial scope.
 13. Development runs directly in a browser; production is packaged as static offline web content and hosted fullscreen by Unity.
@@ -59,11 +60,14 @@ This directory is the authoritative documentation root for **Night Courier**.
 22. Road geometry, lane markings, simple tunnel enclosure, simple HUD bars/text and basic screen effects are procedural; concept-art breadth does not expand gameplay scope automatically.
 23. The player steering set is exactly five separately authored `256 x 256` transparent FLAT frames for the initial release. `Center / Left / Hard Left` use approximately `0° / 10–12° / 20–22°` yaw progression, with symmetric angle metrics on the right; runtime bitmap mirroring is not the production solution because asymmetric hero-car details must remain on their real side.
 24. Player steering frames preserve canonical contact registration around `(128,232)`, stable apparent scale, controlled rear-plane contraction and progressive side/wheel visibility. Each frame follows Night Courier 20 and has a hard cap of **24 visible colors** excluding transparency.
-25. Initial gameplay presentation is **landscape-only** at a `960 x 540` logical canvas with aspect-preserving FIT scaling; portrait browser fallback asks the user to rotate rather than running a separate portrait gameplay layout.
-26. Touch, keyboard and optional gamepad all normalize into the same `InputState`; touch-specific controls must not leak into `Player` driving logic.
-27. Five player textures are selected from a separate smoothed visual-steering presentation value so binary input can traverse moderate steering poses without changing physics.
-28. Production runtime assets live under the shared `WebGame/public/assets/{player,traffic,props,backgrounds,fx,ui,fonts,audio}` categories. Source art and per-zone asset-pack directories remain outside the runtime structure.
-29. Player runtime presentation initially uses a `256 x 256` display box with source contact anchor `(128,232)`. The currently committed `1254/1256`-square player PNGs are staging references and must be explicitly re-exported at exactly `256 x 256` before Batch A player acceptance.
+25. Every production traffic visual uses a complete five-yaw family (`Hard Left / Left / Center / Right / Hard Right`), with every traffic frame exported as an exact `256 x 256` transparent PNG and road-contact registration compatible with `(128,232)`.
+26. Traffic yaw is presentation only. Taxi/hatchback remain `car`, van remains `van`, truck remains `truck`; selected yaw texture never changes road-space collision, near-miss state, speed or AI behavior.
+27. Traffic `256 x 256` is a source/export contract, not a fixed display size. Traffic remains depth-scaled by the pseudo-3D projection/world-size data.
+28. The standard initial traffic set is taxi + hatchback + van + truck, each with five yaw states = **20 traffic frames**. A reduced three-identity set is **15 frames** but every shipping identity still requires all five yaw states for final acceptance.
+29. Initial gameplay presentation is **landscape-only** at a `960 x 540` logical canvas with aspect-preserving FIT scaling; portrait browser fallback asks the user to rotate rather than running a separate portrait gameplay layout.
+30. Touch, keyboard and optional gamepad all normalize into the same `InputState`; touch-specific controls must not leak into `Player` driving logic.
+31. Five player textures are selected from a separate smoothed visual-steering presentation value so binary input can traverse moderate steering poses without changing physics.
+32. Production runtime assets live under the shared `WebGame/public/assets/{player,traffic,props,backgrounds,fx,ui,fonts,audio}` categories. Source art and per-zone asset-pack directories remain outside the runtime structure.
 
 ## External-reference discipline
 
