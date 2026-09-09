@@ -1,16 +1,40 @@
 import type Phaser from 'phaser';
 
-import {
-  TRAFFIC_ANCHOR_X,
-  TRAFFIC_ANCHOR_Y,
-  TRAFFIC_SOURCE_SIZE,
-  trafficTextureKey,
-  type TrafficVisualId,
-  type TrafficYawId,
-} from '../config';
 import type { Road, RoadObjectProjection } from './Road';
 
 export type TrafficType = 'car' | 'van' | 'truck';
+
+export const TRAFFIC_VISUAL_IDS = ['taxi', 'hatchback', 'van', 'truck'] as const;
+export type TrafficVisualId = (typeof TRAFFIC_VISUAL_IDS)[number];
+
+export const TRAFFIC_YAW_IDS = [
+  'hard_left',
+  'left',
+  'center',
+  'right',
+  'hard_right',
+] as const;
+export type TrafficYawId = (typeof TRAFFIC_YAW_IDS)[number];
+export type TrafficTextureKey = `traffic_${TrafficVisualId}_rear_${TrafficYawId}`;
+
+export function trafficTextureKey(
+  visual: TrafficVisualId,
+  yaw: TrafficYawId,
+): TrafficTextureKey {
+  return `traffic_${visual}_rear_${yaw}`;
+}
+
+export const TRAFFIC_TEXTURE_KEYS = TRAFFIC_VISUAL_IDS.flatMap((visual) =>
+  TRAFFIC_YAW_IDS.map((yaw) => trafficTextureKey(visual, yaw)),
+) as readonly TrafficTextureKey[];
+
+export const TRAFFIC_TEXTURE_PATHS = Object.fromEntries(
+  TRAFFIC_TEXTURE_KEYS.map((key) => [key, `assets/traffic/${key}.png`]),
+) as Record<TrafficTextureKey, string>;
+
+export const TRAFFIC_SOURCE_SIZE = 256;
+export const TRAFFIC_ANCHOR_X = 128;
+export const TRAFFIC_ANCHOR_Y = 232;
 
 export interface TrafficStepResult {
   collisions: number;
@@ -40,7 +64,6 @@ interface TrafficTuning {
   collisionLateral: number;
   cargoDamage: number;
   speedRetention: number;
-  worldWidth: number;
   worldHeight: number;
 }
 
@@ -66,7 +89,6 @@ const TUNING: Record<TrafficType, TrafficTuning> = {
     collisionLateral: 0.28,
     cargoDamage: 7,
     speedRetention: 0.68,
-    worldWidth: 420,
     worldHeight: 590,
   },
   van: {
@@ -74,7 +96,6 @@ const TUNING: Record<TrafficType, TrafficTuning> = {
     collisionLateral: 0.31,
     cargoDamage: 11,
     speedRetention: 0.58,
-    worldWidth: 500,
     worldHeight: 720,
   },
   truck: {
@@ -82,7 +103,6 @@ const TUNING: Record<TrafficType, TrafficTuning> = {
     collisionLateral: 0.34,
     cargoDamage: 16,
     speedRetention: 0.48,
-    worldWidth: 560,
     worldHeight: 800,
   },
 };
