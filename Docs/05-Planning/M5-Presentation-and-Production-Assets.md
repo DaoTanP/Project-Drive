@@ -11,6 +11,7 @@ Authoritative inputs:
 - [`../01-Design/Art-Direction-and-Color-Palette.md`](../01-Design/Art-Direction-and-Color-Palette.md)
 - [`../01-Design/Asset-Inventory-and-Sprite-Requirements.md`](../01-Design/Asset-Inventory-and-Sprite-Requirements.md)
 - [`../01-Design/Player-Sprite-Angle-Specification.md`](../01-Design/Player-Sprite-Angle-Specification.md)
+- [`../01-Design/Traffic-Sprite-Angle-Specification.md`](../01-Design/Traffic-Sprite-Angle-Specification.md)
 - [`../01-Design/Environment-Zones-and-Roadside-Composition.md`](../01-Design/Environment-Zones-and-Roadside-Composition.md)
 - [`../03-Technical/Technical-Design.md`](../03-Technical/Technical-Design.md)
 
@@ -115,15 +116,15 @@ Exact dimensions are tuning, but controls must satisfy:
 
 Touch implementation belongs in `Input.ts` plus minimal scene-owned visual controls. Do not create a touch-input subsystem or mobile scene.
 
-## 6. Player visual-steering contract
+## 6. Vehicle yaw-presentation contracts
+
+### 6.1 Player visual steering
 
 The five player sprites are presentation state, not five physics modes.
 
 The simulation continues to consume raw normalized steering. `GameScene` maintains a separate presentation value named `visualSteer` that approaches the current steering input over a short arcade response window.
 
 This separation is required so binary keyboard/touch input can visibly pass through the moderate steering frames instead of snapping directly from `Center` to `Hard Left/Hard Right`.
-
-### Five-state mapping
 
 Initial pose bands:
 
@@ -146,7 +147,7 @@ The exact response rate is tuning. Requirements are:
 
 Do not introduce a player animator/state-machine framework solely for five steering textures.
 
-### 256 x 256 resolution contract
+### 6.2 Player 256 x 256 source contract
 
 The previous 64 x 64 player source contract is retired.
 
@@ -160,15 +161,50 @@ canonical contact anchor = (128, 232)
 
 The resolution change does not alter yaw angles, five-state count, FLAT-only scope, physics or road-space collision.
 
-The five high-resolution player PNGs currently committed are staging references rather than accepted production exports. Their observed dimensions are `1254 x 1254` for Center/Right and `1256 x 1256` for Left/Hard Left/Hard Right. Runtime may scale them while the integration path is validated, but production acceptance requires explicit exact 256 x 256 exports with stable registration.
+### 6.3 Traffic five-yaw contract
 
-Do not silently resample the staging PNGs and declare them final without visual review.
+Every production traffic visual uses the complete five-yaw family documented in `Traffic-Sprite-Angle-Specification.md`:
+
+```text
+Hard Left -> Left -> Center -> Right -> Hard Right
+```
+
+Every traffic frame is an exact **`256 x 256`** transparent source image using a road-contact anchor compatible with `(128,232)`.
+
+Canonical naming pattern:
+
+```text
+traffic_<visual>_rear_<yaw>.png
+```
+
+Examples:
+
+```text
+traffic_taxi_rear_center.png
+traffic_taxi_rear_left.png
+traffic_taxi_rear_hard_left.png
+traffic_van_rear_right.png
+traffic_truck_rear_hard_right.png
+```
+
+Traffic yaw is presentation state. It should derive from local projected road tangent / relative heading and any real lateral heading if that mechanic later exists; it must **not** become an AI steering state.
+
+Traffic pose selection must not alter:
+
+- `TrafficType`;
+- traffic speed;
+- road-space `roadX`;
+- collision envelope;
+- near-miss envelope/state;
+- recycle/spawn logic.
+
+The `256 x 256` size is a source/export contract only. Traffic runtime display size remains pseudo-3D projected and depth-dependent; do not render traffic at a fixed 256px box.
+
+A `Center`-only traffic visual may exist temporarily during integration, but final Batch A acceptance requires all five yaw states for every traffic visual that ships.
 
 ## 7. Batch A — gameplay-readable art
 
 Produce and integrate only after M5A contracts are stable.
-
-Required initial art:
 
 ### Player
 
@@ -184,22 +220,39 @@ player_rear_hard_right.png
 
 They follow `Player-Sprite-Angle-Specification.md` exactly.
 
-Runtime integration now preloads these five keys, renders the player with a Phaser image rather than the procedural player placeholder, uses the `(128,232)` source contact anchor and selects textures through smoothed `visualSteer`.
-
-This implementation progress does **not** mark the player art accepted: the currently committed staging PNGs must still be replaced/re-exported at exact 256 x 256 and pass the full visual/registration checklist.
+Runtime integration preloads these five keys, renders the player with a Phaser image rather than the procedural player placeholder, uses the `(128,232)` source contact anchor and selects textures through smoothed `visualSteer`.
 
 ### Traffic
 
-At least three production visuals, recommended four:
+Standard Batch A traffic content is four production visual identities:
 
 ```text
-traffic_taxi_rear.png       -> car
-traffic_hatchback_rear.png  -> car
-traffic_van_rear.png        -> van
-traffic_truck_rear.png      -> truck
+taxi       -> car
+hatchback  -> car
+van        -> van
+truck      -> truck
 ```
 
-Visual variety must not create new traffic behavior classes.
+Each identity requires five `256 x 256` yaw frames:
+
+```text
+rear_hard_left
+rear_left
+rear_center
+rear_right
+rear_hard_right
+```
+
+Counts:
+
+```text
+reduced minimum: 3 identities x 5 = 15 traffic frames
+standard target: 4 identities x 5 = 20 traffic frames
+```
+
+Visual/yaw variety must not create new traffic behavior classes.
+
+Produce one complete traffic family and validate registration/camera continuity before finalizing all twenty frames.
 
 ### First backgrounds
 
@@ -208,20 +261,27 @@ bg_city_far.png
 bg_city_mid.png
 ```
 
-Batch A should remain approximately 10–11 images.
+Batch A image count is therefore:
+
+- **22 images minimum** = 5 player + 15 traffic + 2 backgrounds;
+- **27 images standard** = 5 player + 20 traffic + 2 backgrounds.
 
 ### Batch A gate
 
 Before Batch B:
 
-- all five player source PNGs are exact 256 x 256 exports;
+- all five player source PNGs are exact `256 x 256` exports;
 - player pose transitions read as one vehicle at gameplay speed;
 - player remains readable against city/forest/mountain-pass/tunnel placeholder compositions;
 - player contact anchor remains stable across all five states;
+- every shipping traffic visual has all five exact `256 x 256` yaw frames;
+- every traffic family preserves stable `(128,232)`-compatible contact registration and apparent scale;
+- traffic yaw changes read as one vehicle rotating, not independent concept renders;
 - traffic silhouettes remain readable at near-miss/collision distances;
+- traffic pose selection does not change road-space collision or near-miss behavior;
 - pivots and transparent bounds are stable;
 - nearest-neighbor rendering shows no obvious smoothing;
-- no pitch-family expansion is justified by default.
+- no player or traffic pitch-family expansion is justified by default.
 
 ## 8. Batch B — environment identity
 
@@ -330,12 +390,16 @@ Do not add during M5 unless acceptance evidence proves a concrete need:
 - new gameplay mechanics;
 - new routes or environment zones;
 - player uphill/downhill pitch families;
+- traffic uphill/downhill pitch families;
 - more than five player yaw states;
+- more than five traffic yaw states;
 - new traffic AI types;
+- lane-change/steering AI solely to justify traffic yaw art;
 - zone-specific vehicle physics;
 - full 3D tunnel;
 - per-zone asset packs;
 - generalized UI framework;
+- generalized vehicle-animation framework;
 - custom atlas/content pipeline;
 - shader palette system;
 - audio middleware;
@@ -351,7 +415,7 @@ M5A is complete when:
 - the approved runtime asset directories exist;
 - `BootScene` owns preload progress/failure handling and cannot continue after required-load failure;
 - browser shell uses the canonical deep-night background and has a landscape-only portrait notice;
-- touch layout and visual steering contracts are documented before their implementation;
+- touch layout and vehicle-yaw presentation contracts are documented before their implementation;
 - no fake production image/audio/font has been added merely to exercise the loader;
 - `npm run typecheck`, production build, static-output smoke and representative shell checks pass.
 
