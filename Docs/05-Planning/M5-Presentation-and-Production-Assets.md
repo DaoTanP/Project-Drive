@@ -268,7 +268,9 @@ Batch A image count is therefore:
 
 ### Batch A gate
 
-Before Batch B:
+**Prototype progression exception:** the current vehicle yaw families are accepted as prototype art so environment work can proceed. Known horizontal source clipping and final yaw-family/camera/readability approval are deferred to M7.10. This does not relax the final production contract and must not trigger runtime compensation, per-state scaling or vehicle redesign during M5C.
+
+Before final production approval:
 
 - all five player source PNGs are exact `256 x 256` exports;
 - player pose transitions read as one vehicle at gameplay speed;
@@ -321,6 +323,8 @@ Projected roadside sprites must:
 - stay inside existing `Road.ts` / `GameScene` responsibility unless measured complexity proves extraction necessary.
 
 Do not add `EnvironmentRenderer`, `PropManager`, ECS or zone scenes preemptively.
+
+**M5C.1 infrastructure status:** implemented and browser-validated. `Road.ts` now exposes deterministic sprite-backed roadside projections from the same M4 placement rules, while `GameScene.ts` owns a bounded reusable `Phaser.Image` pool. A temporary CI-only five-texture harness validated a fixed pool of 180 images, all five representative prop kinds, 514 far-to-near ordering samples, deterministic repeated projection, stable pool object reuse and real crest cropping. These synthetic textures were never committed and do **not** count toward M5.9 production-asset acceptance. Until real Batch B prop PNGs are committed/preloaded, the runtime intentionally retains M4 procedural roadside presentation.
 
 ## 9. HUD and feedback
 
