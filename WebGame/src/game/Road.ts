@@ -304,7 +304,9 @@ export class Road {
 
     this.projectionFrame += 1;
     graphics.clear();
-    drawBackground(graphics, playerZone, width, height, view.playerPosition);
+    if (playerZone !== 'city') {
+      drawBackground(graphics, playerZone, width, height, view.playerPosition);
+    }
 
     for (let step = 0; step < DRAW_DISTANCE; step += 1) {
       const unwrappedIndex = cameraIndex + step;
