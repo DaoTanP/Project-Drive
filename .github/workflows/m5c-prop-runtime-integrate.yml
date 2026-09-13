@@ -1,0 +1,70 @@
+name: M5C Prop Runtime Integration
+
+on:
+  push:
+    branches:
+      - feat/m5c-prop-validation-rescale
+    paths:
+      - '.github/workflows/m5c-prop-runtime-integrate.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: feat/m5c-prop-validation-rescale
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22.12.0'
+          cache: npm
+          cache-dependency-path: WebGame/package-lock.json
+      - name: Patch BootScene and GameScene
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          boot = Path('WebGame/src/scenes/BootScene.ts')
+          text = boot.read_text()
+          old = """const BATCH_B0_ROADSIDE_TEXTURE_PATHS = {\n  prop_streetlight: 'assets/props/prop_streetlight.png',\n  prop_chevron: 'assets/props/prop_chevron.png',\n} as const;"""
+          new = """const BATCH_B0_ROADSIDE_TEXTURE_PATHS = {\n  prop_streetlight: 'assets/props/prop_streetlight.png',\n  prop_guardrail: 'assets/props/prop_guardrail.png',\n  prop_tree_cluster_01: 'assets/props/prop_tree_cluster_01.png',\n  prop_rock_cluster_01: 'assets/props/prop_rock_cluster_01.png',\n  prop_chevron: 'assets/props/prop_chevron.png',\n} as const;"""
+          if old not in text:
+              raise SystemExit('BootScene preload marker not found')
+          boot.write_text(text.replace(old, new, 1))
+
+          game = Path('WebGame/src/scenes/GameScene.ts')
+          text = game.read_text()
+          old = """const ROADSIDE_TEXTURE_BY_KIND: Partial<Record<RoadsideSpriteKind, string>> = {\n  light: 'prop_streetlight',\n  rail: 'prop_guardrail',\n  tree: 'prop_tree_cluster_01',\n  rock: 'prop_rock_cluster_01',\n  chevron: 'prop_chevron',\n};\nconst ROADSIDE_FLIPPABLE_KINDS: ReadonlySet<RoadsideSpriteKind> = new Set(['chevron']);"""
+          new = """interface RoadsideTextureSpec {\n  textureKey: string;\n  originY: number;\n}\n\n// originY is the validated visual alpha-base divided by full source height.\n// This preserves each complete PNG canvas while anchoring visible ground contact to the road.\nconst ROADSIDE_TEXTURE_BY_KIND: Partial<Record<RoadsideSpriteKind, RoadsideTextureSpec>> = {\n  light: { textureKey: 'prop_streetlight', originY: 244 / 256 },\n  rail: { textureKey: 'prop_guardrail', originY: 76 / 85 },\n  tree: { textureKey: 'prop_tree_cluster_01', originY: 253 / 256 },\n  rock: { textureKey: 'prop_rock_cluster_01', originY: 209 / 213 },\n  chevron: { textureKey: 'prop_chevron', originY: 252 / 256 },\n};\nconst ROADSIDE_FLIPPABLE_KINDS: ReadonlySet<RoadsideSpriteKind> = new Set(['chevron']);"""
+          if old not in text:
+              raise SystemExit('GameScene texture map marker not found')
+          text = text.replace(old, new, 1)
+
+          old = """    this.roadsideSpriteKinds = new Set(\n      (Object.entries(ROADSIDE_TEXTURE_BY_KIND) as Array<[RoadsideSpriteKind, string]>)\n        .filter(([, textureKey]) => this.textures.exists(textureKey))\n        .map(([kind]) => kind),\n    );"""
+          new = """    this.roadsideSpriteKinds = new Set(\n      (Object.entries(ROADSIDE_TEXTURE_BY_KIND) as Array<[RoadsideSpriteKind, RoadsideTextureSpec]>)\n        .filter(([, spec]) => this.textures.exists(spec.textureKey))\n        .map(([kind]) => kind),\n    );"""
+          if old not in text:
+              raise SystemExit('GameScene kind collection marker not found')
+          text = text.replace(old, new, 1)
+
+          old = """      const textureKey = ROADSIDE_TEXTURE_BY_KIND[projection.kind];\n      if (textureKey === undefined || !this.textures.exists(textureKey)) continue;\n\n      const displayWidth = projection.worldWidth * projection.pixelsPerWorld;\n      const displayHeight = projection.worldHeight * projection.pixelsPerWorld;\n      if (displayWidth < 1.5 || displayHeight < 2) continue;\n\n      const top = projection.y - displayHeight;\n      const visibleBottom = Math.min(projection.y, projection.clipY);\n      const visibleHeight = visibleBottom - top;\n      if (visibleHeight <= 1) continue;\n\n      const image = this.roadsideSprites[i];\n      image\n        .setTexture(textureKey)\n        .setOrigin(0.5, 1)\n        .setPosition(projection.x, projection.y)\n        .setDisplaySize(displayWidth, displayHeight)\n        .setFlipX(ROADSIDE_FLIPPABLE_KINDS.has(projection.kind) && projection.side < 0)\n        .setDepth(1 + i / (this.roadsideSprites.length + 1))\n        .setVisible(true);\n\n      if (visibleHeight < displayHeight - 0.5) {\n        const sourceHeight = image.frame.height;\n        const cropHeight = Math.max(1, Math.min(sourceHeight, Math.ceil(sourceHeight * (visibleHeight / displayHeight))));\n        image.setCrop(0, 0, image.frame.width, cropHeight);\n      } else {\n        image.setCrop();\n      }"""
+          new = """      const textureSpec = ROADSIDE_TEXTURE_BY_KIND[projection.kind];\n      if (textureSpec === undefined || !this.textures.exists(textureSpec.textureKey)) continue;\n\n      const displayWidth = projection.worldWidth * projection.pixelsPerWorld;\n      const displayHeight = projection.worldHeight * projection.pixelsPerWorld;\n      if (displayWidth < 1.5 || displayHeight < 2) continue;\n\n      const imageTop = projection.y - displayHeight * textureSpec.originY;\n      const visibleBottom = Math.min(projection.y, projection.clipY);\n      const visibleHeight = visibleBottom - imageTop;\n      if (visibleHeight <= 1) continue;\n\n      const image = this.roadsideSprites[i];\n      image\n        .setTexture(textureSpec.textureKey)\n        .setOrigin(0.5, textureSpec.originY)\n        .setPosition(projection.x, projection.y)\n        .setDisplaySize(displayWidth, displayHeight)\n        .setFlipX(ROADSIDE_FLIPPABLE_KINDS.has(projection.kind) && projection.side < 0)\n        .setDepth(1 + i / (this.roadsideSprites.length + 1))\n        .setVisible(true);\n\n      if (projection.clipY < projection.y - 0.5) {\n        const sourceHeight = image.frame.height;\n        const cropHeight = Math.max(\n          1,\n          Math.min(sourceHeight, Math.ceil(sourceHeight * (visibleHeight / displayHeight))),\n        );\n        image.setCrop(0, 0, image.frame.width, cropHeight);\n      } else {\n        image.setCrop();\n      }"""
+          if old not in text:
+              raise SystemExit('GameScene render block marker not found')
+          game.write_text(text.replace(old, new, 1))
+          PY
+      - name: Typecheck and build
+        working-directory: WebGame
+        run: |
+          npm ci
+          npm run typecheck
+          npm run build
+      - name: Commit runtime integration
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add WebGame/src/scenes/BootScene.ts WebGame/src/scenes/GameScene.ts
+          git commit -m 'feat: integrate all validated Batch B0 roadside props'
+          git push origin HEAD:feat/m5c-prop-validation-rescale
