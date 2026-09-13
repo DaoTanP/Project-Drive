@@ -1,0 +1,97 @@
+name: M5C Asset Audit
+
+on:
+  push:
+    branches:
+      - feat/m5c-batch-b0-integration
+    paths:
+      - '.github/workflows/m5c-asset-audit.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Audit PNG contracts
+        run: |
+          python3 -m pip install --disable-pip-version-check pillow
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+
+          palette = {
+              (0x08,0x0C,0x18),(0x0E,0x16,0x28),(0x16,0x22,0x3A),(0x22,0x33,0x4D),(0x34,0x4A,0x64),
+              (0x64,0x74,0x8A),(0x9B,0xAA,0xBC),(0xD5,0xDC,0xE5),(0xF5,0xF3,0xEA),(0xF4,0xC9,0x5D),
+              (0xFF,0x91,0x4D),(0xEB,0x55,0x48),(0xFF,0x3B,0x8D),(0xB5,0x6C,0xFF),(0x22,0xD3,0xEE),
+              (0x29,0xA9,0xE8),(0x55,0xE0,0x6F),(0xD6,0xF0,0x4B),(0xFF,0xCC,0x33),(0xFF,0x45,0x5D),
+          }
+
+          players = [
+              'player_rear_hard_left.png','player_rear_left.png','player_rear_center.png',
+              'player_rear_right.png','player_rear_hard_right.png',
+          ]
+          props = [
+              'prop_streetlight.png','prop_guardrail.png','prop_tree_cluster_01.png',
+              'prop_rock_cluster_01.png','prop_chevron.png',
+          ]
+
+          failures = []
+
+          def audit(path: Path, *, player: bool):
+              im = Image.open(path).convert('RGBA')
+              w, h = im.size
+              alpha = im.getchannel('A')
+              bbox = alpha.getbbox()
+              if bbox is None:
+                  failures.append(f'{path.name}: empty alpha')
+                  return
+              left, top, right, bottom = bbox
+              margins = (left, top, w-right, h-bottom)
+              edge = {
+                  'L': any(alpha.getpixel((0,y)) > 0 for y in range(h)),
+                  'R': any(alpha.getpixel((w-1,y)) > 0 for y in range(h)),
+                  'T': any(alpha.getpixel((x,0)) > 0 for x in range(w)),
+                  'B': any(alpha.getpixel((x,h-1)) > 0 for x in range(w)),
+              }
+              opaque_rgb = {px[:3] for px in im.getdata() if px[3] > 0}
+              off = sorted(opaque_rgb - palette)
+              partial_alpha = sum(1 for px in im.getdata() if 0 < px[3] < 255)
+              print(
+                  f'{path.name}: size={w}x{h} bbox={bbox} margins={margins} '
+                  f'edge={edge} colors={len(opaque_rgb)} off_palette={len(off)} partial_alpha={partial_alpha}'
+              )
+              if off:
+                  print(f'  off-palette sample={off[:12]}')
+
+              if player:
+                  if (w, h) != (256, 256):
+                      failures.append(f'{path.name}: player source must be 256x256')
+                  if bottom - 1 != 232:
+                      failures.append(f'{path.name}: visual alpha base Y must remain 232, got {bottom - 1}')
+                  if edge['L'] or edge['R']:
+                      failures.append(f'{path.name}: horizontal source clipping/edge contact remains')
+              else:
+                  if w > 256 or h > 256 or w < 16 or h < 16:
+                      failures.append(f'{path.name}: prop dimensions outside current practical 16..256 range')
+                  if margins[3] > 4:
+                      failures.append(f'{path.name}: bottom transparent padding {margins[3]}px is too large for bottom-origin projection')
+                  if all(px[3] == 255 for px in im.getdata()):
+                      failures.append(f'{path.name}: no transparency detected')
+
+          for name in players:
+              audit(Path('WebGame/public/assets/player') / name, player=True)
+          for name in props:
+              audit(Path('WebGame/public/assets/props') / name, player=False)
+
+          if failures:
+              print('\nFAILURES:')
+              for failure in failures:
+                  print(f'- {failure}')
+              raise SystemExit(1)
+          print('\nAsset audit hard gates passed.')
+          PY
