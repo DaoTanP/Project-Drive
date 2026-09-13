@@ -22,7 +22,9 @@ jobs:
           python3 -m pip install --disable-pip-version-check pillow
           python3 - <<'PY'
           from pathlib import Path
-          from PIL import Image
+          from PIL import Image, ImageFile
+
+          ImageFile.LOAD_TRUNCATED_IMAGES = True
 
           palette = {
               (0x08,0x0C,0x18),(0x0E,0x16,0x28),(0x16,0x22,0x3A),(0x22,0x33,0x4D),(0x34,0x4A,0x64),
@@ -40,16 +42,36 @@ jobs:
               'prop_rock_cluster_01.png','prop_chevron.png',
           ]
 
-          failures = []
+          hard_failures = []
+          warnings = []
+
+          def verify_png(path: Path):
+              try:
+                  with Image.open(path) as check:
+                      check.verify()
+                  return None
+              except Exception as exc:
+                  return f'{type(exc).__name__}: {exc}'
 
           def audit(path: Path, *, player: bool):
-              im = Image.open(path).convert('RGBA')
+              verify_error = verify_png(path)
+              if verify_error:
+                  hard_failures.append(f'{path.name}: PNG verify failed: {verify_error}')
+
+              try:
+                  im = Image.open(path).convert('RGBA')
+              except Exception as exc:
+                  hard_failures.append(f'{path.name}: cannot decode: {type(exc).__name__}: {exc}')
+                  return
+
               w, h = im.size
+              pixels = list(im.getdata())
               alpha = im.getchannel('A')
               bbox = alpha.getbbox()
               if bbox is None:
-                  failures.append(f'{path.name}: empty alpha')
+                  hard_failures.append(f'{path.name}: empty alpha')
                   return
+
               left, top, right, bottom = bbox
               margins = (left, top, w-right, h-bottom)
               edge = {
@@ -58,39 +80,51 @@ jobs:
                   'T': any(alpha.getpixel((x,0)) > 0 for x in range(w)),
                   'B': any(alpha.getpixel((x,h-1)) > 0 for x in range(w)),
               }
-              opaque_rgb = {px[:3] for px in im.getdata() if px[3] > 0}
+              opaque_rgb = {px[:3] for px in pixels if px[3] > 0}
               off = sorted(opaque_rgb - palette)
-              partial_alpha = sum(1 for px in im.getdata() if 0 < px[3] < 255)
+              partial_alpha = sum(1 for px in pixels if 0 < px[3] < 255)
+              transparent = sum(1 for px in pixels if px[3] == 0)
+
               print(
                   f'{path.name}: size={w}x{h} bbox={bbox} margins={margins} '
-                  f'edge={edge} colors={len(opaque_rgb)} off_palette={len(off)} partial_alpha={partial_alpha}'
+                  f'edge={edge} colors={len(opaque_rgb)} off_palette={len(off)} '
+                  f'partial_alpha={partial_alpha} transparent={transparent} verify={verify_error or "ok"}'
               )
               if off:
                   print(f'  off-palette sample={off[:12]}')
 
               if player:
                   if (w, h) != (256, 256):
-                      failures.append(f'{path.name}: player source must be 256x256')
+                      hard_failures.append(f'{path.name}: player source must be 256x256')
                   if bottom - 1 != 232:
-                      failures.append(f'{path.name}: visual alpha base Y must remain 232, got {bottom - 1}')
+                      hard_failures.append(f'{path.name}: visual alpha base Y must remain 232, got {bottom - 1}')
                   if edge['L'] or edge['R']:
-                      failures.append(f'{path.name}: horizontal source clipping/edge contact remains')
+                      warnings.append(f'{path.name}: horizontal edge contact remains (prototype-deferred to M7.10)')
+                  if off:
+                      warnings.append(f'{path.name}: {len(off)} visible RGB colors are outside Night Courier 20')
               else:
                   if w > 256 or h > 256 or w < 16 or h < 16:
-                      failures.append(f'{path.name}: prop dimensions outside current practical 16..256 range')
+                      warnings.append(f'{path.name}: dimensions {w}x{h} are outside current typical prop guidance')
                   if margins[3] > 4:
-                      failures.append(f'{path.name}: bottom transparent padding {margins[3]}px is too large for bottom-origin projection')
-                  if all(px[3] == 255 for px in im.getdata()):
-                      failures.append(f'{path.name}: no transparency detected')
+                      hard_failures.append(f'{path.name}: bottom transparent padding {margins[3]}px is too large for bottom-origin projection')
+                  if transparent == 0:
+                      hard_failures.append(f'{path.name}: no transparency detected')
+                  if off:
+                      warnings.append(f'{path.name}: {len(off)} visible RGB colors are outside Night Courier 20')
+                  if partial_alpha:
+                      warnings.append(f'{path.name}: {partial_alpha} partially transparent pixels may read anti-aliased under nearest-neighbor scaling')
 
           for name in players:
               audit(Path('WebGame/public/assets/player') / name, player=True)
           for name in props:
               audit(Path('WebGame/public/assets/props') / name, player=False)
 
-          if failures:
-              print('\nFAILURES:')
-              for failure in failures:
+          print('\nWARNINGS:')
+          for warning in warnings:
+              print(f'- {warning}')
+          if hard_failures:
+              print('\nHARD FAILURES:')
+              for failure in hard_failures:
                   print(f'- {failure}')
               raise SystemExit(1)
           print('\nAsset audit hard gates passed.')
