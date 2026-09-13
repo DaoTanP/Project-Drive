@@ -1,0 +1,148 @@
+name: M5C Prop Runtime Smoke
+
+on:
+  push:
+    branches:
+      - feat/m5c-prop-validation-rescale
+    paths:
+      - '.github/workflows/m5c-prop-runtime-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22.12.0'
+          cache: npm
+          cache-dependency-path: WebGame/package-lock.json
+      - name: Build instrumented production package
+        working-directory: WebGame
+        run: |
+          npm ci
+          npm install --no-save playwright@1.55.0
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('src/main.ts')
+          text = path.read_text()
+          marker = 'new Phaser.Game(gameConfig);'
+          if marker not in text:
+              raise SystemExit('main.ts marker not found')
+          path.write_text(text.replace(marker, "(window as typeof window & { __nightCourierGame?: Phaser.Game }).__nightCourierGame = new Phaser.Game(gameConfig);", 1))
+          PY
+          npm run typecheck
+          npm run build
+          npx playwright install --with-deps chromium
+      - name: Run production browser smoke
+        working-directory: WebGame
+        run: |
+          npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/night-courier-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill $PREVIEW_PID || true' EXIT
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then break; fi
+            sleep 1
+          done
+          node <<'JS'
+          const { chromium } = require('playwright');
+
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
+            await page.goto('http://127.0.0.1:4173/', { waitUntil: 'networkidle' });
+            await page.waitForFunction(() => {
+              const game = window.__nightCourierGame;
+              return game && game.scene && game.scene.isActive('Game');
+            }, null, { timeout: 15000 });
+
+            const result = await page.evaluate(() => {
+              const game = window.__nightCourierGame;
+              const scene = game.scene.getScene('Game');
+              scene.scene.pause();
+
+              const expectedOrigins = {
+                prop_streetlight: 244 / 256,
+                prop_guardrail: 76 / 85,
+                prop_tree_cluster_01: 253 / 256,
+                prop_rock_cluster_01: 209 / 213,
+                prop_chevron: 252 / 256,
+              };
+              const expectedKeys = Object.keys(expectedOrigins);
+              const missingTextures = expectedKeys.filter((key) => !game.textures.exists(key));
+              const initialPool = scene.roadsideSprites.slice();
+              const found = new Set();
+              const badOrigins = [];
+              let croppedSamples = 0;
+              let orderingSamples = 0;
+              let badOrdering = 0;
+              let positionMismatches = 0;
+
+              scene.chooseRoute('risky');
+              const destination = scene.road.destinationDistance;
+              for (let d = 0; d <= destination; d += 2000) {
+                scene.runState.routeDistance = d;
+                scene.renderFrame();
+
+                let previousCameraZ = Infinity;
+                let visibleInFrame = 0;
+                for (let i = 0; i < scene.roadsideSprites.length; i += 1) {
+                  const image = scene.roadsideSprites[i];
+                  if (!image.visible) continue;
+                  visibleInFrame += 1;
+                  const key = image.texture.key;
+                  found.add(key);
+
+                  if (key in expectedOrigins && Math.abs(image.originY - expectedOrigins[key]) > 1e-6) {
+                    badOrigins.push({ key, originY: image.originY, expected: expectedOrigins[key] });
+                  }
+
+                  const projection = scene.roadsideSpriteProjections[i];
+                  if (Math.abs(image.y - projection.y) > 1e-6) positionMismatches += 1;
+                  if (projection.cameraZ > previousCameraZ + 1e-6) badOrdering += 1;
+                  previousCameraZ = projection.cameraZ;
+                  if (image.isCropped === true) croppedSamples += 1;
+                }
+                if (visibleInFrame > 1) orderingSamples += 1;
+              }
+
+              const poolReused = initialPool.length === scene.roadsideSprites.length &&
+                initialPool.every((image, index) => image === scene.roadsideSprites[index]);
+
+              return {
+                missingTextures,
+                expectedKeys,
+                found: [...found].filter((key) => expectedKeys.includes(key)).sort(),
+                badOrigins,
+                croppedSamples,
+                orderingSamples,
+                badOrdering,
+                positionMismatches,
+                poolSize: scene.roadsideSprites.length,
+                poolReused,
+              };
+            });
+
+            console.log(JSON.stringify(result, null, 2));
+            const failures = [];
+            if (result.missingTextures.length) failures.push(`missing textures: ${result.missingTextures.join(', ')}`);
+            if (result.found.length !== result.expectedKeys.length) failures.push(`only found ${result.found.length}/5 production prop kinds`);
+            if (result.badOrigins.length) failures.push(`origin mismatches: ${JSON.stringify(result.badOrigins.slice(0, 5))}`);
+            if (result.positionMismatches) failures.push(`ground-contact position mismatches: ${result.positionMismatches}`);
+            if (!result.poolReused || result.poolSize !== 180) failures.push(`pool reuse/size failed: size=${result.poolSize} reused=${result.poolReused}`);
+            if (result.orderingSamples === 0 || result.badOrdering) failures.push(`far-to-near ordering failed: samples=${result.orderingSamples} bad=${result.badOrdering}`);
+            if (result.croppedSamples === 0) failures.push('no crest-cropped production prop sample observed');
+
+            await browser.close();
+            if (failures.length) {
+              console.error(failures.join('\n'));
+              process.exit(1);
+            }
+          })().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          JS
