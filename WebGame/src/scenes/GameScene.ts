@@ -39,12 +39,19 @@ const CITY_BACKGROUND_HORIZON_RATIO = 0.54;
 const CITY_FAR_PARALLAX_RATE = 0.012;
 const CITY_MID_PARALLAX_RATE = 0.028;
 
-const ROADSIDE_TEXTURE_BY_KIND: Partial<Record<RoadsideSpriteKind, string>> = {
-  light: 'prop_streetlight',
-  rail: 'prop_guardrail',
-  tree: 'prop_tree_cluster_01',
-  rock: 'prop_rock_cluster_01',
-  chevron: 'prop_chevron',
+interface RoadsideTextureSpec {
+  textureKey: string;
+  originY: number;
+}
+
+// originY is the validated visual alpha-base divided by full source height.
+// This preserves each complete PNG canvas while anchoring visible ground contact to the road.
+const ROADSIDE_TEXTURE_BY_KIND: Partial<Record<RoadsideSpriteKind, RoadsideTextureSpec>> = {
+  light: { textureKey: 'prop_streetlight', originY: 244 / 256 },
+  rail: { textureKey: 'prop_guardrail', originY: 76 / 85 },
+  tree: { textureKey: 'prop_tree_cluster_01', originY: 253 / 256 },
+  rock: { textureKey: 'prop_rock_cluster_01', originY: 209 / 213 },
+  chevron: { textureKey: 'prop_chevron', originY: 252 / 256 },
 };
 const ROADSIDE_FLIPPABLE_KINDS: ReadonlySet<RoadsideSpriteKind> = new Set(['chevron']);
 
@@ -319,8 +326,8 @@ export class GameScene extends Phaser.Scene {
 
   private initializeRoadsideSpritePool(): void {
     this.roadsideSpriteKinds = new Set(
-      (Object.entries(ROADSIDE_TEXTURE_BY_KIND) as Array<[RoadsideSpriteKind, string]>)
-        .filter(([, textureKey]) => this.textures.exists(textureKey))
+      (Object.entries(ROADSIDE_TEXTURE_BY_KIND) as Array<[RoadsideSpriteKind, RoadsideTextureSpec]>)
+        .filter(([, spec]) => this.textures.exists(spec.textureKey))
         .map(([kind]) => kind),
     );
 
@@ -346,31 +353,34 @@ export class GameScene extends Phaser.Scene {
     const count = this.road.collectRoadsideSprites(this.roadsideSpriteProjections, this.roadsideSpriteKinds);
     for (let i = 0; i < count; i += 1) {
       const projection = this.roadsideSpriteProjections[i];
-      const textureKey = ROADSIDE_TEXTURE_BY_KIND[projection.kind];
-      if (textureKey === undefined || !this.textures.exists(textureKey)) continue;
+      const textureSpec = ROADSIDE_TEXTURE_BY_KIND[projection.kind];
+      if (textureSpec === undefined || !this.textures.exists(textureSpec.textureKey)) continue;
 
       const displayWidth = projection.worldWidth * projection.pixelsPerWorld;
       const displayHeight = projection.worldHeight * projection.pixelsPerWorld;
       if (displayWidth < 1.5 || displayHeight < 2) continue;
 
-      const top = projection.y - displayHeight;
+      const imageTop = projection.y - displayHeight * textureSpec.originY;
       const visibleBottom = Math.min(projection.y, projection.clipY);
-      const visibleHeight = visibleBottom - top;
+      const visibleHeight = visibleBottom - imageTop;
       if (visibleHeight <= 1) continue;
 
       const image = this.roadsideSprites[i];
       image
-        .setTexture(textureKey)
-        .setOrigin(0.5, 1)
+        .setTexture(textureSpec.textureKey)
+        .setOrigin(0.5, textureSpec.originY)
         .setPosition(projection.x, projection.y)
         .setDisplaySize(displayWidth, displayHeight)
         .setFlipX(ROADSIDE_FLIPPABLE_KINDS.has(projection.kind) && projection.side < 0)
         .setDepth(1 + i / (this.roadsideSprites.length + 1))
         .setVisible(true);
 
-      if (visibleHeight < displayHeight - 0.5) {
+      if (projection.clipY < projection.y - 0.5) {
         const sourceHeight = image.frame.height;
-        const cropHeight = Math.max(1, Math.min(sourceHeight, Math.ceil(sourceHeight * (visibleHeight / displayHeight))));
+        const cropHeight = Math.max(
+          1,
+          Math.min(sourceHeight, Math.ceil(sourceHeight * (visibleHeight / displayHeight))),
+        );
         image.setCrop(0, 0, image.frame.width, cropHeight);
       } else {
         image.setCrop();
