@@ -18,6 +18,9 @@ import {
 
 const BATCH_B0_ROADSIDE_TEXTURE_PATHS = {
   prop_streetlight: 'assets/props/prop_streetlight.png',
+  prop_guardrail: 'assets/props/prop_guardrail.png',
+  prop_tree_cluster_01: 'assets/props/prop_tree_cluster_01.png',
+  prop_rock_cluster_01: 'assets/props/prop_rock_cluster_01.png',
   prop_chevron: 'assets/props/prop_chevron.png',
 } as const;
 
