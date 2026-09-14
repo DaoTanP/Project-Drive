@@ -16,12 +16,19 @@ import {
   TRAFFIC_TEXTURE_PATHS,
 } from '../game/Traffic';
 
-const BATCH_B0_ROADSIDE_TEXTURE_PATHS = {
+const ROADSIDE_TEXTURE_PATHS = {
   prop_streetlight: 'assets/props/prop_streetlight.png',
   prop_guardrail: 'assets/props/prop_guardrail.png',
   prop_tree_cluster_01: 'assets/props/prop_tree_cluster_01.png',
   prop_rock_cluster_01: 'assets/props/prop_rock_cluster_01.png',
   prop_chevron: 'assets/props/prop_chevron.png',
+  prop_utility_pole: 'assets/props/prop_utility_pole.png',
+  prop_caution_sign: 'assets/props/prop_caution_sign.png',
+  prop_commercial_sign: 'assets/props/prop_commercial_sign.png',
+  prop_destination_marker: 'assets/props/prop_destination_marker.png',
+  prop_expressway_gantry: 'assets/props/prop_expressway_gantry.png',
+  prop_tunnel_light: 'assets/props/prop_tunnel_light.png',
+  prop_tunnel_portal: 'assets/props/prop_tunnel_portal.png',
 } as const;
 
 export class BootScene extends Phaser.Scene {
@@ -67,7 +74,7 @@ export class BootScene extends Phaser.Scene {
       this.load.image(key, CITY_BACKGROUND_TEXTURE_PATHS[key]);
     }
 
-    for (const [key, path] of Object.entries(BATCH_B0_ROADSIDE_TEXTURE_PATHS)) {
+    for (const [key, path] of Object.entries(ROADSIDE_TEXTURE_PATHS)) {
       this.load.image(key, path);
     }
   }

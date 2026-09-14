@@ -9,7 +9,12 @@ export type EnvironmentZone =
   | 'mountain-pass'
   | 'tunnel';
 
-type LandmarkId = 'route-choice' | 'tunnel-entry' | 'tunnel-exit' | 'destination';
+type LandmarkId =
+  | 'route-choice'
+  | 'expressway-gantry'
+  | 'tunnel-entry'
+  | 'tunnel-exit'
+  | 'destination';
 export type RoadsideSpriteKind =
   | 'light'
   | 'rail'
@@ -18,6 +23,11 @@ export type RoadsideSpriteKind =
   | 'rock'
   | 'chevron'
   | 'sign'
+  | 'caution'
+  | 'gantry'
+  | 'portal'
+  | 'tunnel-light'
+  | 'destination'
   | 'reflector';
 
 export interface RoadSectionSpec {
@@ -99,6 +109,7 @@ const CURVE_WORLD_SCALE = 8;
 const LANE_COUNT = 3;
 const ROUTE_START_POSITION = 1200;
 const BRANCH_PROMPT_LEAD_DISTANCE = 24000;
+const TUNNEL_CEILING_WORLD_OFFSET = 1050;
 
 const EMPTY_ROADSIDE_SPRITE_KINDS: ReadonlySet<RoadsideSpriteKind> = new Set();
 const PROP_WORLD_SIZE: Record<RoadsideSpriteKind, readonly [number, number]> = {
@@ -109,6 +120,11 @@ const PROP_WORLD_SIZE: Record<RoadsideSpriteKind, readonly [number, number]> = {
   rock: [760, 620],
   chevron: [300, 460],
   sign: [680, 720],
+  caution: [360, 760],
+  gantry: [4300, 1600],
+  portal: [5000, 2400],
+  'tunnel-light': [900, 260],
+  destination: [2200, 1300],
   reflector: [95, 160],
 };
 
@@ -142,7 +158,7 @@ const ZONE_STYLE: Record<EnvironmentZone, ZoneStyle> = {
     rumbleB: NC.lamp,
     spacing: 10,
     propOffset: 1.35,
-    props: ['light', 'sign', 'rail', 'light'],
+    props: ['light', 'sign', 'rail', 'pole', 'light'],
   },
   rural: {
     groundA: NC.n1,
@@ -151,7 +167,7 @@ const ZONE_STYLE: Record<EnvironmentZone, ZoneStyle> = {
     rumbleB: NC.lightMetal,
     spacing: 16,
     propOffset: 1.55,
-    props: ['pole', 'tree', 'rail', 'reflector'],
+    props: ['pole', 'tree', 'rail', 'reflector', 'caution'],
   },
   forest: {
     groundA: NC.n0,
@@ -169,7 +185,7 @@ const ZONE_STYLE: Record<EnvironmentZone, ZoneStyle> = {
     rumbleB: NC.white,
     spacing: 9,
     propOffset: 1.42,
-    props: ['rock', 'chevron', 'rail', 'tree'],
+    props: ['rock', 'chevron', 'rail', 'tree', 'caution'],
   },
   tunnel: {
     groundA: NC.n0,
@@ -178,14 +194,14 @@ const ZONE_STYLE: Record<EnvironmentZone, ZoneStyle> = {
     rumbleB: NC.lightMetal,
     spacing: 5,
     propOffset: 1.22,
-    props: ['light', 'reflector', 'light'],
+    props: ['tunnel-light', 'reflector', 'tunnel-light'],
   },
 };
 
 // 1600 segments -> branch at roughly 100 s of clean max-speed driving.
 const COMMON: readonly RoadSectionSpec[] = [
   s('city', 30, 240, 30, 0.05, 0),
-  s('city', 35, 250, 35, 0.38, 160),
+  s('city', 35, 250, 35, 0.38, 160, 'expressway-gantry'),
   s('city', 30, 220, 30, -0.32, -120),
   s('rural', 35, 230, 35, 0.16, 220),
   s('rural', 30, 220, 30, -0.2, -180),
@@ -213,7 +229,7 @@ const SAFE: readonly RoadSectionSpec[] = [
 
 // 900 playable segments, then destination + 400-segment render tail.
 const FINAL: readonly RoadSectionSpec[] = [
-  s('city', 30, 240, 30, -0.18, -120),
+  s('city', 30, 240, 30, -0.18, -120, 'expressway-gantry'),
   s('city', 30, 240, 30, 0.26, 80),
   s('city', 30, 240, 30, 0, 0),
   s('city', 0, 1, 0, 0, 0, 'destination'),
@@ -395,12 +411,27 @@ export class Road {
 
     for (let i = this.projectedSegments.length - 1; i >= 0 && count < output.length; i -= 1) {
       const segment = this.projectedSegments[i];
+      const landmarkKind = landmarkSpriteKind(segment.landmark);
+      if (landmarkKind !== null && spriteBackedKinds.has(landmarkKind)) {
+        const target = output[count];
+        if (projectFromSegment(segment, 0.5, 0, target)) {
+          const [worldWidth, worldHeight] = PROP_WORLD_SIZE[landmarkKind];
+          target.kind = landmarkKind;
+          target.side = 1;
+          target.zone = segment.zone;
+          target.worldWidth = worldWidth;
+          target.worldHeight = worldHeight;
+          count += 1;
+          continue;
+        }
+      }
+
       const style = ZONE_STYLE[segment.zone];
       const hash = hash32(segment.index, zoneSalt(segment.zone));
       if ((segment.index + (hash % style.spacing)) % style.spacing !== 0) continue;
 
       const kind = style.props[(hash >>> 4) % style.props.length];
-      if (!usesProductionRoadsideSprite(kind, segment.zone, spriteBackedKinds)) continue;
+      if (!usesProductionRoadsideSprite(kind, spriteBackedKinds)) continue;
 
       let side: -1 | 1 = hash % 2 === 0 ? -1 : 1;
       if (kind === 'chevron' && Math.abs(segment.curve) > 0.08) {
@@ -408,7 +439,14 @@ export class Road {
       }
       const variation = 0.88 + ((hash >>> 9) % 30) / 100;
       const target = output[count];
-      if (!projectFromSegment(segment, 0.55, style.propOffset * variation * side, target)) continue;
+      const roadX = kind === 'tunnel-light' ? 0 : style.propOffset * variation * side;
+      if (!projectFromSegment(segment, 0.55, roadX, target)) continue;
+
+      if (kind === 'tunnel-light') {
+        target.y -= TUNNEL_CEILING_WORLD_OFFSET * target.pixelsPerWorld;
+        target.clipY = Number.POSITIVE_INFINITY;
+        side = 1;
+      }
 
       const [worldWidth, worldHeight] = PROP_WORLD_SIZE[kind];
       target.kind = kind;
@@ -681,7 +719,12 @@ function drawRoadside(
 
   for (let i = visible.length - 1; i >= 0; i -= 1) {
     const segment = visible[i];
-    if (segment.landmark !== null && projectFromSegment(segment, 0.5, 0, p)) {
+    const landmarkKind = landmarkSpriteKind(segment.landmark);
+    if (
+      segment.landmark !== null &&
+      (landmarkKind === null || !spriteBackedKinds.has(landmarkKind)) &&
+      projectFromSegment(segment, 0.5, 0, p)
+    ) {
       drawLandmark(graphics, p, segment.landmark);
     }
 
@@ -690,7 +733,7 @@ function drawRoadside(
     if ((segment.index + (hash % style.spacing)) % style.spacing !== 0) continue;
 
     const kind = style.props[(hash >>> 4) % style.props.length];
-    if (usesProductionRoadsideSprite(kind, segment.zone, spriteBackedKinds)) continue;
+    if (usesProductionRoadsideSprite(kind, spriteBackedKinds)) continue;
 
     let side = hash % 2 === 0 ? -1 : 1;
     if (kind === 'chevron' && Math.abs(segment.curve) > 0.08) side = segment.curve > 0 ? 1 : -1;
@@ -801,6 +844,11 @@ function drawProp(
     rock: [760, 620, NC.n4],
     chevron: [300, 460, NC.score],
     sign: [680, 720, NC.blue],
+    caution: [360, 760, NC.score],
+    gantry: [4300, 1600, NC.metal],
+    portal: [5000, 2400, NC.n4],
+    'tunnel-light': [900, 260, NC.lamp],
+    destination: [2200, 1300, NC.red],
     reflector: [95, 160, NC.white],
   };
   const [worldWidth, worldHeight, color] = config[kind];
@@ -833,12 +881,18 @@ function drawProp(
   graphics.fillRect(p.x - w * 0.5, bottom - h, w, h);
 }
 
+function landmarkSpriteKind(landmark: LandmarkId | null): RoadsideSpriteKind | null {
+  if (landmark === 'expressway-gantry') return 'gantry';
+  if (landmark === 'tunnel-entry' || landmark === 'tunnel-exit') return 'portal';
+  if (landmark === 'destination') return 'destination';
+  return null;
+}
+
 function usesProductionRoadsideSprite(
   kind: RoadsideSpriteKind,
-  zone: EnvironmentZone,
   spriteBackedKinds: ReadonlySet<RoadsideSpriteKind>,
 ): boolean {
-  return spriteBackedKinds.has(kind) && !(kind === 'light' && zone === 'tunnel');
+  return spriteBackedKinds.has(kind);
 }
 
 function zoneSalt(zone: EnvironmentZone): number {
