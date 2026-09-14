@@ -1,0 +1,62 @@
+name: M5C Finalize Batch B Docs
+
+on:
+  push:
+    branches:
+      - chore/m5c-finalize-batch-b
+    paths:
+      - '.github/workflows/m5c-finalize-batch-b-docs.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: chore/m5c-finalize-batch-b
+      - name: Patch M5 Batch B status
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          backlog = Path('Docs/05-Planning/Task-Backlog.md')
+          text = backlog.read_text()
+          old = "**M5C status:** projected roadside infrastructure plus Batch B0/B1 production integration are structurally validated. Twelve shared props now load through the existing Road.ts/GameScene.ts projection path: five Batch B0 roadside assets plus utility/signage, authored gantry/portal/destination landmarks and repeated ceiling-relative tunnel lights. M5.9 remains open for the remaining shared-prop vocabulary, final zone composition and M7.10 human visual approval."
+          new = "**M5C status:** projected roadside infrastructure plus Batch B0/B1 production integration and the final Batch B composition gate are structurally validated. Twelve justified shared props load through the existing Road.ts/GameScene.ts projection path: five Batch B0 roadside assets plus utility/signage, authored gantry/portal/destination landmarks and repeated ceiling-relative tunnel lights. Browser composition scanning confirms distinct production-sprite vocabularies across all five zones, so the approximate 15–18 prop target is intentionally not treated as a quota. M5.9 is complete at 12 props; subjective gameplay-speed composition/palette approval remains M5.21/M7.10. M5.10 shared natural backgrounds is the next environment slice."
+          if old not in text:
+              raise SystemExit('M5C status marker not found')
+          text = text.replace(old, new, 1)
+          old = "- [ ] M5.9 Produce/import Asset Batch B: approximately 15–18 reusable roadside/environment props shared across all five zones. Twelve production props are now runtime-integrated: Batch B0 (`streetlight`, `guardrail`, `tree`, `rock`, `chevron`) plus Batch B1 (`utility_pole`, `caution_sign`, `commercial_sign`, `destination_marker`, `expressway_gantry`, `tunnel_light`, `tunnel_portal`). B1 reuses the existing 180-image pool and deterministic Road placement; gantry/portal/destination use authored landmark segments and tunnel lights are ceiling-relative rather than ground props. M5.9 remains open for roughly 3–6 justified shared props, final composition and M7.10 palette/pixel-edge/human-readability approval."
+          new = "- [x] M5.9 Produce/import Asset Batch B shared roadside/environment props across all five zones. The final prototype vocabulary is **12 justified production props**: Batch B0 (`streetlight`, `guardrail`, `tree`, `rock`, `chevron`) plus Batch B1 (`utility_pole`, `caution_sign`, `commercial_sign`, `destination_marker`, `expressway_gantry`, `tunnel_light`, `tunnel_portal`). The approximate 15–18 target was not used as a quota because the final browser composition gate found distinct non-empty sprite vocabularies in every zone with no missing texture, pool or ordering regression. Final human composition/palette/pixel-edge approval remains M5.21/M7.10."
+          if old not in text:
+              raise SystemExit('M5.9 backlog marker not found')
+          backlog.write_text(text.replace(old, new, 1))
+
+          planning = Path('Docs/05-Planning/M5-Presentation-and-Production-Assets.md')
+          text = planning.read_text()
+          marker = "**Batch B1 runtime status (2026-09-14):** the seven normalized assets are now preloaded and integrated without adding a renderer/manager module. `utility_pole` and `commercial_sign` reuse existing `pole`/`sign` ambient roles; `caution_sign` is shared by rural/mountain-pass; `expressway_gantry`, `tunnel_portal` and `destination_marker` replace authored landmark presentation; `tunnel_light` is a repeated tunnel-only ceiling-relative sprite and is explicitly excluded from road/crest cropping. Browser validation across both safe and risky route builds loaded all 12 Batch B textures, encountered every B1 role in the expected zone family, reused the fixed 180-image pool, recorded 12,183 far-to-near ordering samples with zero ordering failures, found 1,119 tunnel-light projection samples with zero finite road clips/crop violations, and found zero texture-origin mismatches. M5.9 remains open for the remaining justified shared props and final composition."
+          addition = marker + "\n\n**Batch B final composition gate (2026-09-14):** a production-build Chromium scan sampled both route branches every 1,200 route units and confirmed that the 12 integrated props already provide distinct non-empty production-sprite vocabularies for all five zones: city = `destination/gantry/light/pole/rail/sign`; rural = `caution/pole/rail/tree`; forest = `rail/tree`; mountain-pass = `caution/chevron/rail/rock/tree`; tunnel = `portal/tunnel-light`. Across 1,348 zone samples the fixed pool remained 180/reused, all required textures loaded, and 24,313 far-to-near samples produced zero ordering failures. Representative 960x540 captures also show clearly different city/rural/forest/mountain-pass compositions; tunnel remains intentionally dark and its final human readability belongs to M5.21/M7.10. Because no missing semantic prop role was demonstrated, the approximate 15–18 count is not treated as a quota and M5.9 closes at 12 justified props. M5.10 shared natural backgrounds is the next environment slice."
+          if marker not in text:
+              raise SystemExit('planning Batch B1 marker not found')
+          planning.write_text(text.replace(marker, addition, 1))
+
+          acceptance = Path('Docs/06-Quality/M5-Presentation-Acceptance.md')
+          text = acceptance.read_text()
+          text = text.replace('- [ ] all five zones remain distinguishable at gameplay speed with the shared production prop inventory;', '- [x] all five zones have distinct non-empty production-sprite vocabularies in the automated/static composition gate; final gameplay-speed human approval remains M5.21/M7.10;', 1)
+          marker = "**Batch B1 structural runtime validation (2026-09-14):** all seven assets are now loaded and rendered through the existing projected-sprite path. Chromium production-build scanning across both branches reported `missingTextures=[]`, pool size `180` with stable object reuse, all 12 production prop kinds/textures encountered, zero origin mismatches, `12,183` far-to-near ordering samples with zero ordering failures, and `1,119` tunnel-light samples restricted to the tunnel with zero finite road clips and zero crop violations. Zone evidence includes utility poles in city/rural, commercial signs and gantries in city, caution signs in rural/mountain-pass, portals/tunnel lights in tunnel and the destination marker in city. This accepts structural runtime integration only; human gameplay-speed scale/composition/palette approval remains M7.10 and M5.9 remains open until the shared prop vocabulary/composition is complete."
+          addition = marker.replace(' and M5.9 remains open until the shared prop vocabulary/composition is complete.', '.') + "\n\n**Batch B final composition acceptance (2026-09-14):** the final prototype prop set remains 12 assets. A separate production-build route scan sampled 598 city, 317 rural, 200 forest, 142 mountain-pass and 91 tunnel states. Average projected production-sprite counts were approximately 20.0, 10.5, 19.6, 20.9 and 23.7 respectively. Each zone produced a unique vocabulary signature, all 12 textures loaded, the fixed 180-image pool was reused, and 24,313 far-to-near samples had zero ordering failures. Representative captures support prototype-level zone distinction; the tunnel is intentionally very dark and final human gameplay-speed visibility/palette judgment remains explicitly deferred to M5.21/M7.10. No additional prop category is justified solely to reach the earlier approximate 15–18 count. M5.9 is therefore structurally accepted."
+          if marker not in text:
+              raise SystemExit('acceptance Batch B1 marker not found')
+          acceptance.write_text(text.replace(marker, addition, 1))
+          PY
+      - name: Commit documentation
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Docs/05-Planning/M5-Presentation-and-Production-Assets.md Docs/05-Planning/Task-Backlog.md Docs/06-Quality/M5-Presentation-Acceptance.md
+          git diff --cached --quiet && exit 1
+          git commit -m 'docs: accept final Batch B prop composition'
+          git push origin HEAD:chore/m5c-finalize-batch-b
