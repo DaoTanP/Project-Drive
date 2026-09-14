@@ -42,6 +42,7 @@ const CITY_MID_PARALLAX_RATE = 0.028;
 interface RoadsideTextureSpec {
   textureKey: string;
   originY: number;
+  clipToRoad?: boolean;
 }
 
 // originY is the validated visual alpha-base divided by full source height.
@@ -49,9 +50,16 @@ interface RoadsideTextureSpec {
 const ROADSIDE_TEXTURE_BY_KIND: Partial<Record<RoadsideSpriteKind, RoadsideTextureSpec>> = {
   light: { textureKey: 'prop_streetlight', originY: 244 / 256 },
   rail: { textureKey: 'prop_guardrail', originY: 76 / 85 },
+  pole: { textureKey: 'prop_utility_pole', originY: 247 / 256 },
   tree: { textureKey: 'prop_tree_cluster_01', originY: 253 / 256 },
   rock: { textureKey: 'prop_rock_cluster_01', originY: 209 / 213 },
   chevron: { textureKey: 'prop_chevron', originY: 252 / 256 },
+  sign: { textureKey: 'prop_commercial_sign', originY: 177 / 192 },
+  caution: { textureKey: 'prop_caution_sign', originY: 239 / 256 },
+  gantry: { textureKey: 'prop_expressway_gantry', originY: 145 / 160 },
+  portal: { textureKey: 'prop_tunnel_portal', originY: 187 / 192 },
+  'tunnel-light': { textureKey: 'prop_tunnel_light', originY: 0.5, clipToRoad: false },
+  destination: { textureKey: 'prop_destination_marker', originY: 198 / 205 },
 };
 const ROADSIDE_FLIPPABLE_KINDS: ReadonlySet<RoadsideSpriteKind> = new Set(['chevron']);
 
@@ -360,8 +368,11 @@ export class GameScene extends Phaser.Scene {
       const displayHeight = projection.worldHeight * projection.pixelsPerWorld;
       if (displayWidth < 1.5 || displayHeight < 2) continue;
 
+      const clipToRoad = textureSpec.clipToRoad !== false;
       const imageTop = projection.y - displayHeight * textureSpec.originY;
-      const visibleBottom = Math.min(projection.y, projection.clipY);
+      const visibleBottom = clipToRoad
+        ? Math.min(projection.y, projection.clipY)
+        : imageTop + displayHeight;
       const visibleHeight = visibleBottom - imageTop;
       if (visibleHeight <= 1) continue;
 
@@ -375,7 +386,7 @@ export class GameScene extends Phaser.Scene {
         .setDepth(1 + i / (this.roadsideSprites.length + 1))
         .setVisible(true);
 
-      if (projection.clipY < projection.y - 0.5) {
+      if (clipToRoad && projection.clipY < projection.y - 0.5) {
         const sourceHeight = image.frame.height;
         const cropHeight = Math.max(
           1,
