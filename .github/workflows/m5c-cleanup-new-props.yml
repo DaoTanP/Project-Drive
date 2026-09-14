@@ -1,0 +1,105 @@
+name: M5C Cleanup New Props
+
+on:
+  push:
+    branches:
+      - fix/m5c-cleanup-new-props
+    paths:
+      - '.github/workflows/m5c-cleanup-new-props.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: fix/m5c-cleanup-new-props
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Validate and normalize recently added props
+        run: |
+          python -m pip install --disable-pip-version-check pillow==11.3.0
+          python <<'PY'
+          from pathlib import Path
+          from PIL import Image
+
+          root = Path('WebGame/public/assets/props')
+          names = [
+              'prop_caution_sign.png',
+              'prop_commercial_sign.png',
+              'prop_utility_pole.png',
+              'prop_destination_marker.png',
+              'prop_expressway_gantry.png',
+              'prop_tunnel_light.png',
+              'prop_tunnel_portal.png',
+          ]
+
+          changed = []
+          print('PROP_CLEANUP_REPORT_BEGIN')
+          for name in names:
+              path = root / name
+              with Image.open(path) as probe:
+                  probe.verify()
+
+              with Image.open(path) as source:
+                  original_mode = source.mode
+                  original_size = source.size
+                  rgba = source.convert('RGBA')
+                  alpha = rgba.getchannel('A')
+                  bbox = alpha.getbbox()
+                  if bbox is None:
+                      raise SystemExit(f'{name}: fully transparent image')
+
+                  alpha_values = alpha.getdata()
+                  partial_alpha = sum(1 for value in alpha_values if 0 < value < 255)
+                  unique_rgba = len(set(rgba.getdata()))
+
+                  max_edge = max(rgba.size)
+                  if max_edge > 256:
+                      scale = 256 / max_edge
+                      new_size = (
+                          max(1, round(rgba.width * scale)),
+                          max(1, round(rgba.height * scale)),
+                      )
+                      rgba = rgba.resize(new_size, Image.Resampling.NEAREST)
+                      rgba.save(path, format='PNG', optimize=False)
+                      changed.append(name)
+                  elif original_mode != 'RGBA':
+                      rgba.save(path, format='PNG', optimize=False)
+                      changed.append(name)
+
+                  with Image.open(path) as final_image:
+                      final_rgba = final_image.convert('RGBA')
+                      final_bbox = final_rgba.getchannel('A').getbbox()
+                      print(
+                          f'{name}|mode={original_mode}->RGBA|size={original_size[0]}x{original_size[1]}'
+                          f'->{final_rgba.width}x{final_rgba.height}|alpha_bbox={bbox}->{final_bbox}'
+                          f'|partial_alpha={partial_alpha}|unique_rgba={unique_rgba}'
+                          f'|changed={name in changed}'
+                      )
+
+          print('changed=' + ','.join(changed))
+          print('PROP_CLEANUP_REPORT_END')
+          PY
+      - name: Commit normalized prop files
+        run: |
+          if git diff --quiet -- WebGame/public/assets/props; then
+            echo 'No prop files required cleanup.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            WebGame/public/assets/props/prop_caution_sign.png \
+            WebGame/public/assets/props/prop_commercial_sign.png \
+            WebGame/public/assets/props/prop_utility_pole.png \
+            WebGame/public/assets/props/prop_destination_marker.png \
+            WebGame/public/assets/props/prop_expressway_gantry.png \
+            WebGame/public/assets/props/prop_tunnel_light.png \
+            WebGame/public/assets/props/prop_tunnel_portal.png
+          git commit -m 'fix: normalize recently added Batch B props'
+          git push origin HEAD:fix/m5c-cleanup-new-props
