@@ -1,0 +1,163 @@
+name: M5C Batch B Composition Validation
+
+on:
+  push:
+    branches:
+      - chore/m5c-finalize-batch-b
+    paths:
+      - '.github/workflows/m5c-batch-b-composition.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: chore/m5c-finalize-batch-b
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22.12.0'
+      - name: Expose Phaser game for test-only inspection
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          path = Path('WebGame/src/main.ts')
+          text = path.read_text()
+          old = 'new Phaser.Game(gameConfig);'
+          new = "(window as unknown as { __nightCourierGame: Phaser.Game }).__nightCourierGame = new Phaser.Game(gameConfig);"
+          if old not in text:
+              raise SystemExit('main bootstrap marker not found')
+          path.write_text(text.replace(old, new, 1))
+          PY
+      - name: Build browser harness
+        working-directory: WebGame
+        run: |
+          npm ci
+          npm run typecheck
+          npm run build
+          npm install --no-save playwright@1.55.0
+          npx playwright install chromium
+      - name: Serve production build
+        working-directory: WebGame
+        run: |
+          nohup npx vite preview --host 127.0.0.1 --port 4173 > /tmp/night-courier-vite.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/night-courier-vite.log
+          exit 1
+      - name: Validate zone composition in Chromium
+        working-directory: WebGame
+        run: |
+          cat > batch-b-composition.cjs <<'JS'
+          const { chromium } = require('playwright');
+          const fs = require('fs');
+
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
+            const errors = [];
+            page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });
+            page.on('pageerror', err => errors.push(String(err)));
+            await page.goto('http://127.0.0.1:4173/', { waitUntil: 'networkidle' });
+            await page.waitForFunction(() => window.__nightCourierGame?.scene?.isActive('Game') === true, null, { timeout: 15000 });
+
+            const report = await page.evaluate(() => {
+              const game = window.__nightCourierGame;
+              const scene = game.scene.getScene('Game');
+              scene.scene.pause();
+              const requiredTextures = [
+                'prop_streetlight', 'prop_guardrail', 'prop_tree_cluster_01', 'prop_rock_cluster_01', 'prop_chevron',
+                'prop_utility_pole', 'prop_caution_sign', 'prop_commercial_sign', 'prop_destination_marker',
+                'prop_expressway_gantry', 'prop_tunnel_light', 'prop_tunnel_portal',
+              ];
+              const missingTextures = requiredTextures.filter(key => !scene.textures.exists(key));
+              const initialPool = scene.roadsideSprites.slice();
+              const zoneKinds = { city: new Set(), rural: new Set(), forest: new Set(), 'mountain-pass': new Set(), tunnel: new Set() };
+              const zoneSamples = { city: 0, rural: 0, forest: 0, 'mountain-pass': 0, tunnel: 0 };
+              const zoneSpriteTotals = { city: 0, rural: 0, forest: 0, 'mountain-pass': 0, tunnel: 0 };
+              const representative = {};
+              let orderingFailures = 0;
+              let orderingSamples = 0;
+
+              function scan(branch) {
+                scene.road.selectBranch(branch);
+                scene.routeChoice = branch;
+                scene.runState.destinationDistance = scene.road.destinationDistance;
+                scene.runState.finished = false;
+                scene.runState.outcome = null;
+                const destination = scene.road.destinationDistance;
+                for (let distance = 0; distance < destination; distance += 1200) {
+                  const d = Math.min(distance, destination - 1);
+                  scene.runState.routeDistance = d;
+                  scene.renderFrame();
+                  const zone = scene.road.zoneAtRouteDistance(d);
+                  const count = scene.road.collectRoadsideSprites(scene.roadsideSpriteProjections, scene.roadsideSpriteKinds);
+                  zoneSamples[zone] += 1;
+                  zoneSpriteTotals[zone] += count;
+                  if (representative[zone] === undefined && count > 0) representative[zone] = { branch, distance: d };
+                  let previousZ = Number.POSITIVE_INFINITY;
+                  for (let i = 0; i < count; i += 1) {
+                    const p = scene.roadsideSpriteProjections[i];
+                    zoneKinds[p.zone].add(p.kind);
+                    if (p.cameraZ > previousZ + 0.001) orderingFailures += 1;
+                    previousZ = p.cameraZ;
+                    orderingSamples += 1;
+                  }
+                }
+              }
+
+              scan('safe');
+              scan('risky');
+              const poolReused = initialPool.length === scene.roadsideSprites.length && initialPool.every((image, i) => image === scene.roadsideSprites[i]);
+              const normalizedKinds = Object.fromEntries(Object.entries(zoneKinds).map(([zone, kinds]) => [zone, Array.from(kinds).sort()]));
+              const averages = Object.fromEntries(Object.keys(zoneSamples).map(zone => [zone, zoneSamples[zone] ? zoneSpriteTotals[zone] / zoneSamples[zone] : 0]));
+              return { missingTextures, poolSize: scene.roadsideSprites.length, poolReused, zoneKinds: normalizedKinds, zoneSamples, averageSprites: averages, representative, orderingFailures, orderingSamples };
+            });
+
+            const expected = {
+              city: ['light', 'pole', 'sign', 'rail', 'gantry', 'destination'],
+              rural: ['pole', 'tree', 'rail', 'caution'],
+              forest: ['tree', 'rail'],
+              'mountain-pass': ['rock', 'chevron', 'rail', 'tree', 'caution'],
+              tunnel: ['portal', 'tunnel-light'],
+            };
+            if (errors.length) throw new Error('Browser console errors: ' + errors.join(' | '));
+            if (report.missingTextures.length) throw new Error('Missing textures: ' + report.missingTextures.join(','));
+            if (report.poolSize !== 180 || !report.poolReused) throw new Error(`Pool regression: ${report.poolSize}/${report.poolReused}`);
+            if (report.orderingFailures !== 0 || report.orderingSamples < 1000) throw new Error(`Ordering regression: ${report.orderingFailures}/${report.orderingSamples}`);
+            for (const [zone, kinds] of Object.entries(expected)) {
+              for (const kind of kinds) if (!report.zoneKinds[zone].includes(kind)) throw new Error(`${zone} missing ${kind}`);
+              if (report.zoneSamples[zone] < 1 || report.averageSprites[zone] <= 0) throw new Error(`${zone} has no meaningful samples`);
+              if (!report.representative[zone]) throw new Error(`${zone} missing representative position`);
+            }
+            const signatures = Object.entries(report.zoneKinds).map(([zone, kinds]) => [zone, kinds.join('|')]);
+            if (new Set(signatures.map(([, sig]) => sig)).size !== signatures.length) throw new Error('Two zones have identical sprite vocabularies');
+
+            fs.mkdirSync('composition-shots', { recursive: true });
+            for (const [zone, point] of Object.entries(report.representative)) {
+              await page.evaluate(({ branch, distance }) => {
+                const scene = window.__nightCourierGame.scene.getScene('Game');
+                scene.road.selectBranch(branch);
+                scene.routeChoice = branch;
+                scene.runState.destinationDistance = scene.road.destinationDistance;
+                scene.runState.routeDistance = distance;
+                scene.runState.finished = false;
+                scene.runState.outcome = null;
+                scene.renderFrame();
+              }, point);
+              await page.screenshot({ path: `composition-shots/${zone}.png` });
+            }
+            console.log('BATCH_B_COMPOSITION_REPORT=' + JSON.stringify(report));
+            await browser.close();
+          })().catch(error => { console.error(error); process.exit(1); });
+          JS
+          node batch-b-composition.cjs
+      - name: Upload composition screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: m5c-batch-b-composition
+          path: WebGame/composition-shots/*.png
+          if-no-files-found: warn
